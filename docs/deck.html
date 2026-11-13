@@ -62,7 +62,8 @@ img.arch { max-height: 560px; max-width: 1120px; display: block; margin: -8px au
     <li><b>Check.</b> Every hit is joined with the Postgres fix ledger: valid, retired, or unverified.</li>
     <li><b>Investigate.</b> The agent runs diagnostics. The Fixer only applies a fix to a target seen in evidence or memory.</li>
     <li><b>Remember.</b> A verified fix becomes a private memory, a postmortem artifact and a ledger row.</li>
-    <li><b>Share.</b> At the end of the night the datapack owner promotes valid fixes. The other shift finds them next time.</li>
+    <li><b>Learn from people.</b> When the agent gives up, the on-call human's fix is stored the same way, marked as written by a person.</li>
+    <li><b>Share.</b> At the end of the night the datapack owner promotes every fix the ledger still marks valid. The other shift finds them next time.</li>
     <li><b>Forget on purpose.</b> When a remembered fix fails, the ledger retires it and the Fixer refuses it from then on.</li>
   </ul>
 </section>
@@ -84,10 +85,10 @@ img.arch { max-height: 560px; max-width: 1120px; display: block; margin: -8px au
 </section>
 
 <section>
-  <h2>Sharing is what does it</h2>
-  <p>Same Night Shift agent with the collective layer switched off: each shift only sees its own private memories.</p>
+  <h2>Where the gain comes from</h2>
+  <p>Same Night Shift agent, three switches: nothing remembered, private memory only, shared through Meko.</p>
   <table>
-    <tr><th>Repeat pages</th><th>Accuracy</th><th>Steps</th><th>Tokens per page</th></tr>
+    <tr><th>Night Shift lane</th><th>First seen</th><th>Repeats</th><th>Steps per repeat</th></tr>
     {{ABLATION_ROWS}}
   </table>
   <p style="margin-top:26px">{{ABLATION_NOTE}}</p>

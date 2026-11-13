@@ -1,9 +1,9 @@
 """Fill docs/deck.html with numbers from recorded runs and print docs/deck.pdf.
 
-    python scripts/deck.py <offline shared run> <offline no-share run> <live run> [<live run> ...]
+    python scripts/deck.py --ablation <offline runs...> --live <live run> [<live run> ...]
 
-The results slide shows the mean over the live runs; the sharing slide compares the two offline runs,
-which differ only in whether the collective layer is on. The trap story comes from the first live run.
+The results slide shows the mean over the live runs; the ablation slide compares offline Night Shift runs
+(full, --no-share, --no-memory; kind read from summary.json), mean over seeds. The trap story comes from the first live run.
 """
 import html
 import json
@@ -20,13 +20,18 @@ def pct(x):
 
 
 def main():
-    shared, noshare, runs = Path(sys.argv[1]), Path(sys.argv[2]), [Path(x) for x in sys.argv[3:]]
+    argv = sys.argv[1:]
+    abl_dirs = [Path(x) for x in argv[argv.index("--ablation") + 1:argv.index("--live")]]
+    runs = [Path(x) for x in argv[argv.index("--live") + 1:]]
     run = runs[0]
     sums = [json.loads((r / "summary.json").read_text())["results"] for r in runs]
     s = {m: {k: {f: sum(x[m][k][f] for x in sums) / len(sums) for f in ("accuracy", "steps_mean", "tokens_mean")}
              | {"n": sums[0][m][k]["n"]} for k in ("first_seen", "repeat", "trap", "all")} for m in ("baseline", "nightshift")}
-    ns = json.loads((noshare / "summary.json").read_text())["results"]["nightshift"]
-    sh = json.loads((shared / "summary.json").read_text())["results"]["nightshift"]
+    kinds = {"nomemory": [], "noshare": [], "full": []}
+    for d in abl_dirs:
+        r = json.loads((d / "summary.json").read_text())
+        kinds["nomemory" if not r.get("memory", True) else "noshare" if not r.get("share", True) else "full"].append(r["results"]["nightshift"])
+    avg = lambda k, sec, f: sum(x[sec][f] for x in kinds[k]) / len(kinds[k])  # noqa: E731
     rows = json.loads((run / "incidents.json").read_text())
 
     out = []
@@ -41,14 +46,17 @@ def main():
     note = (f"Mean of {len(sums)} live runs (each shuffles which shift gets which page). "
             f"On repeat pages Night Shift resolved {pct(rep_n['accuracy'])} ({per}) against {pct(rep_b['accuracy'])}, "
             f"with {round((1 - rep_n['tokens_mean'] / rep_b['tokens_mean']) * 100)}% fewer tokens. "
-            f"First-seen pages are the control: memory cannot help there yet.")
+            f"First-seen pages gain too, from searching the runbook instead of pasting it (see the next slide).")
 
-    rn = ns["repeat"]
-    abl = (f"<tr><td>Private memory only</td><td>{pct(rn['accuracy'])}</td><td>{rn['steps_mean']}</td><td>{rn['tokens_mean']:,}</td></tr>"
-           f"<tr><td>Shared through Meko</td><td class='win'>{pct(sh['repeat']['accuracy'])}</td><td>{sh['repeat']['steps_mean']}</td>"
-           f"<td>{sh['repeat']['tokens_mean']:,}</td></tr>")
-    abl_note = (f"13 of the 25 repeats first happened on the other shift. Only the collective layer lets "
-                f"shift B use what shift A learned: +{round((sh['repeat']['accuracy'] - rn['accuracy']) * 100)} points on repeats (offline, same pages).")
+    abl = ""
+    for k, label in (("nomemory", "Runbook search only, no memory"), ("noshare", "Private memory only"), ("full", "Shared through Meko")):
+        win = " class='win'" if k == "full" else ""
+        abl += (f"<tr><td>{label}</td><td>{pct(avg(k, 'first_seen', 'accuracy'))}</td><td{win}>{pct(avg(k, 'repeat', 'accuracy'))}</td>"
+                f"<td>{avg(k, 'repeat', 'steps_mean'):.1f}</td></tr>")
+    abl_note = (f"Offline, same pages, mean of {len(kinds['full'])} seeds. Retrieval alone explains the first-seen gain; "
+                f"remembering adds {round((avg('noshare', 'repeat', 'accuracy') - avg('nomemory', 'repeat', 'accuracy')) * 100)} points on repeats, "
+                f"sharing across shifts {round((avg('full', 'repeat', 'accuracy') - avg('noshare', 'repeat', 'accuracy')) * 100)} more "
+                "(13 of the 25 repeats first happened on the other shift).")
 
     # trap story: first trap page in the Night Shift lane that retired or blocked a fix
     trap = next((r for r in rows if r["mode"] == "nightshift" and r["trap"]), None)

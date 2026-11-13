@@ -141,7 +141,8 @@ function show(e) {
   }
   if (e.kind === "learn") logLine(`${e.inc}: shift ${e.shift} learned a verified fix (memory ${String(e.memory_id).slice(0, 8)}).`);
   if (e.kind === "retire") logLine(`${e.inc}: remembered fix ${e.fix} failed. Retired in Postgres: ${e.reason}.`);
-  if (e.kind === "promote") logLine(`End of night ${e.night}: curator approved ${e.ids.length} fix(es). Now visible to both shifts.`);
+  if (e.kind === "human") logLine(`${e.inc}: the agent gave up, the shift ${e.shift} on-call human fixed it. Their note is stored in Meko (memory ${String(e.memory_id).slice(0, 8)}).`);
+  if (e.kind === "promote") logLine(`End of night ${e.night}: curator promoted ${e.ids.length} valid fix(es). Now visible to both shifts.`);
   if (e.kind === "librarian") logLine(e.error ? `Librarian skipped night ${e.night}: ${e.error}` : `Librarian answered a weak search ("${e.query}") and replayed it: match ${e.verify?.before?.band || "?"} → ${e.verify?.after?.band || "?"}, ${e.verify?.outcome || "no result"}.`);
   if (e.kind === "end") {
     const r = el.querySelector(".result");
