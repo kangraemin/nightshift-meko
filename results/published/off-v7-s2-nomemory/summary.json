@@ -1,0 +1,73 @@
+{
+ "run_id": "off-v7-s2-nomemory",
+ "seed": 2,
+ "model": "qwen3:8b",
+ "ledger": "sqlite",
+ "offline": true,
+ "share": true,
+ "memory": false,
+ "humans": true,
+ "incidents": 40,
+ "results": {
+  "baseline": {
+   "all": null,
+   "first_seen": null,
+   "repeat": null,
+   "trap": null
+  },
+  "nightshift": {
+   "all": {
+    "n": 40,
+    "accuracy": 0.6,
+    "steps_mean": 7.53,
+    "tokens_mean": 7663,
+    "seconds_mean": 99.79,
+    "stale_fix_applied": 0,
+    "stale_fix_blocked": 0
+   },
+   "first_seen": {
+    "n": 12,
+    "accuracy": 0.667,
+    "steps_mean": 7.08,
+    "tokens_mean": 6967,
+    "seconds_mean": 111.19,
+    "stale_fix_applied": 0,
+    "stale_fix_blocked": 0
+   },
+   "repeat": {
+    "n": 25,
+    "accuracy": 0.6,
+    "steps_mean": 7.56,
+    "tokens_mean": 7689,
+    "seconds_mean": 92.74,
+    "stale_fix_applied": 0,
+    "stale_fix_blocked": 0
+   },
+   "trap": {
+    "n": 3,
+    "accuracy": 0.333,
+    "steps_mean": 9,
+    "tokens_mean": 10228,
+    "seconds_mean": 112.93,
+    "stale_fix_applied": 0,
+    "stale_fix_blocked": 0
+   }
+  }
+ },
+ "meko_calls": {
+  "A": {
+   "conversation_create": 21,
+   "knowledgebase_upload_document": 1,
+   "knowledgebase_search": 20,
+   "conversation_add_message": 20,
+   "track_token_usage": 20
+  },
+  "B": {
+   "conversation_create": 20,
+   "knowledgebase_search": 20,
+   "conversation_add_message": 20,
+   "track_token_usage": 20
+  }
+ },
+ "fix_validity": []
+}

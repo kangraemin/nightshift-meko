@@ -42,35 +42,38 @@ Live runs: 3 seeds (each seed shuffles which shift gets which page), two real Me
 
 | Pages | Runbook in prompt: resolved | Night Shift: resolved | Steps per page | Tokens per page |
 |---|---|---|---|---|
-| First-seen causes (12) | 56% (58% / 58% / 50%) | **69%** (75% / 75% / 58%) | 8.4 → 7.0 | 11,058 → 8,527 |
-| Repeats (25) | 56% (52% / 60% / 56%) | **76%** (72% / 84% / 72%) | 8.8 → 5.3 | 11,816 → 7,369 |
-| Traps (3) | 33% (33% / 33% / 33%) | 33% (33% / 33% / 33%) | 9.7 → 9.3 | 13,425 → 13,784 |
-| All pages (40) | 54% (52% / 57% / 52%) | **71%** (70% / 78% / 65%) | 8.7 → 6.1 | 11,709 → 8,197 |
+| First-seen causes (12) | 56% (67% / 58% / 42%) | **61%** (67% / 58% / 58%) | 8.4 → 7.2 | 11,173 → 8,948 |
+| Repeats (25) | 56% (56% / 60% / 52%) | **92%** (96% / 92% / 88%) | 8.7 → 2.8 | 11,662 → 3,972 |
+| Traps (3) | 33% (33% / 33% / 33%) | 33% (33% / 33% / 33%) | 9.7 → 9.4 | 13,358 → 13,945 |
+| All pages (40) | 54% (57% / 57% / 48%) | **78%** (82% / 78% / 75%) | 8.7 → 4.6 | 11,642 → 6,213 |
 
 Cells show the mean over seeds, with each seed in brackets.
 
 What the memory layer did, summed over the live runs:
 
-- 47 fixes learned, 45 promoted by the curator, 31 retired by the ledger.
-- Retired fixes were refused 69 times. A fix the ledger had already retired was still applied 13 times on 12 pages: 8 of those pages were resolved, because the old cause had really come back and a diagnostic printed the same target (the fresh-evidence rule); the rest were wasted retries.
-- The librarian answered 34 weak searches; `selflearning_verify` reported 32 of them improved, 23 reaching the high band.
+- 61 fixes learned, 61 promoted by the curator, 28 retired by the ledger. The curator promotes every fix the ledger still marks valid; there is no human review step.
+- 26 pages the agent lost were fixed by the on-call human, and their note went into Meko the same way. A later page started from one of those human notes 32 times and was resolved 28 times.
+- Retired fixes were refused 53 times. A fix the ledger had already retired was still applied 10 times on 8 pages: 7 of those pages were resolved, because the old cause had really come back and a diagnostic printed the same target (the fresh-evidence rule); the rest were wasted retries.
+- The librarian answered 40 searches that Meko scored as weak matches. Replaying them, `selflearning_verify` moved 34 to a better match band, 27 of them to the high band (this is Meko's own retrieval score, not a page outcome).
 
-### Is it the sharing?
+### Where does the gain come from?
 
-Same agent, same pages, offline, with the collective layer switched off so each shift only sees its own private memories:
+Same Night Shift agent and pages, offline (in-process Meko stand-in, SQLite ledger), 3 seeds, three switches:
 
-| Repeat pages | Resolved | Steps | Tokens |
-|---|---|---|---|
-| Private memory only | 64% | 7.52 | 7,909 |
-| Shared through Meko | **72%** | 5.28 | 7,021 |
+| Night Shift lane, offline | First-seen | Repeats | All pages | Steps per repeat |
+|---|---|---|---|---|
+| Runbook search only, nothing remembered (`--no-memory`) | 64% | 64% (64% / 60% / 68%) | 62% | 7.8 |
+| Private memory only, no sharing (`--no-share`) | 67% | 71% (76% / 60% / 76%) | 68% | 6.0 |
+| Shared through Meko | 61% | 91% (92% / 92% / 88%) | 78% | 3.3 |
 
-13 of the 25 repeats first happened on the other shift. Without sharing, those start from scratch.
+- The first row still searches the runbook in Meko instead of pasting it, so it isolates retrieval from memory. Its first-seen score is the share of the gain that comes from a shorter, focused prompt rather than from remembering.
+- 13 of the 25 repeats first happened on the other shift. Without sharing, those start from scratch.
 
 ### What did not improve
 
 - Traps: Night Shift resolved 33% of trap pages, the runbook lane 33%. The ledger stops the stale fix, but finding the new cause is still up to an 8B model.
 - The ledger can also over-block: when the old cause really returns but the agent never runs the diagnostic that prints the target, the retired fix stays refused and the page is lost (INC-33 in two of the three live seeds).
-- First-seen pages are the control: memory cannot help there, and differences come from run-to-run noise of the model.
+- First-seen pages: memory cannot help there, yet Night Shift scored 61% against 56% live. The no-memory control scores 64% offline, so this part of the gain comes from retrieving a few runbook sections instead of pasting the whole runbook, not from the team's memory.
 <!-- /RESULTS -->
 
 ## How Meko is used
