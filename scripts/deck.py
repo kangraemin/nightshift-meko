@@ -1,6 +1,9 @@
 """Fill docs/deck.html with numbers from recorded runs and print docs/deck.pdf.
 
-    python scripts/deck.py results/<run_id> results/<run_id>-noshare
+    python scripts/deck.py <offline shared run> <offline no-share run> <live run> [<live run> ...]
+
+The results slide shows the mean over the live runs; the sharing slide compares the two offline runs,
+which differ only in whether the collective layer is on. The trap story comes from the first live run.
 """
 import html
 import json
@@ -17,9 +20,13 @@ def pct(x):
 
 
 def main():
-    run, noshare = Path(sys.argv[1]), Path(sys.argv[2])
-    s = json.loads((run / "summary.json").read_text())["results"]
+    shared, noshare, runs = Path(sys.argv[1]), Path(sys.argv[2]), [Path(x) for x in sys.argv[3:]]
+    run = runs[0]
+    sums = [json.loads((r / "summary.json").read_text())["results"] for r in runs]
+    s = {m: {k: {f: sum(x[m][k][f] for x in sums) / len(sums) for f in ("accuracy", "steps_mean", "tokens_mean")}
+             | {"n": sums[0][m][k]["n"]} for k in ("first_seen", "repeat", "trap", "all")} for m in ("baseline", "nightshift")}
     ns = json.loads((noshare / "summary.json").read_text())["results"]["nightshift"]
+    sh = json.loads((shared / "summary.json").read_text())["results"]["nightshift"]
     rows = json.loads((run / "incidents.json").read_text())
 
     out = []
@@ -27,19 +34,21 @@ def main():
         b, n = s["baseline"][key], s["nightshift"][key]
         win = "win" if n["accuracy"] > b["accuracy"] else ""
         out.append(f"<tr><td>{label}</td><td>{n['n']}</td><td>{pct(b['accuracy'])}</td>"
-                   f"<td class='{win}'>{pct(n['accuracy'])}</td><td>{b['steps_mean']} → {n['steps_mean']}</td>"
-                   f"<td>{b['tokens_mean']:,} → {n['tokens_mean']:,}</td></tr>")
+                   f"<td class='{win}'>{pct(n['accuracy'])}</td><td>{b['steps_mean']:.1f} → {n['steps_mean']:.1f}</td>"
+                   f"<td>{b['tokens_mean']:,.0f} → {n['tokens_mean']:,.0f}</td></tr>")
     rep_b, rep_n = s["baseline"]["repeat"], s["nightshift"]["repeat"]
-    note = (f"On repeat pages Night Shift resolved {pct(rep_n['accuracy'])} against {pct(rep_b['accuracy'])}, "
+    per = " / ".join(pct(x["nightshift"]["repeat"]["accuracy"]) for x in sums)
+    note = (f"Mean of {len(sums)} live runs (each shuffles which shift gets which page). "
+            f"On repeat pages Night Shift resolved {pct(rep_n['accuracy'])} ({per}) against {pct(rep_b['accuracy'])}, "
             f"with {round((1 - rep_n['tokens_mean'] / rep_b['tokens_mean']) * 100)}% fewer tokens. "
             f"First-seen pages are the control: memory cannot help there yet.")
 
     rn = ns["repeat"]
     abl = (f"<tr><td>Private memory only</td><td>{pct(rn['accuracy'])}</td><td>{rn['steps_mean']}</td><td>{rn['tokens_mean']:,}</td></tr>"
-           f"<tr><td>Shared through Meko</td><td class='win'>{pct(rep_n['accuracy'])}</td><td>{rep_n['steps_mean']}</td>"
-           f"<td>{rep_n['tokens_mean']:,}</td></tr>")
+           f"<tr><td>Shared through Meko</td><td class='win'>{pct(sh['repeat']['accuracy'])}</td><td>{sh['repeat']['steps_mean']}</td>"
+           f"<td>{sh['repeat']['tokens_mean']:,}</td></tr>")
     abl_note = (f"13 of the 25 repeats first happened on the other shift. Only the collective layer lets "
-                f"shift B use what shift A learned: +{round((rep_n['accuracy'] - rn['accuracy']) * 100)} points on repeats.")
+                f"shift B use what shift A learned: +{round((sh['repeat']['accuracy'] - rn['accuracy']) * 100)} points on repeats (offline, same pages).")
 
     # trap story: first trap page in the Night Shift lane that retired or blocked a fix
     trap = next((r for r in rows if r["mode"] == "nightshift" and r["trap"]), None)

@@ -10,6 +10,10 @@ A Postgres ledger records whether each remembered fix still works, so a fix that
 
 Theme: **02 Agentic support: Never Solve It Twice** (internal SRE support).
 
+- Demo video (4:42): https://kangraemin.github.io/nightshift-meko/docs/video/nightshift-demo.mp4
+- Replay a live run in the browser: https://kangraemin.github.io/nightshift-meko/dashboard/
+- Slides: [docs/deck.pdf](docs/deck.pdf)
+
 ![architecture](docs/architecture.svg)
 
 ## What it measures

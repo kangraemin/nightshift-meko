@@ -26,7 +26,7 @@ td.win { color: var(--accent); font-weight: 800; }
 .steps div { padding: 6px 0; border-bottom: 1px solid var(--line); }
 .steps .ok { color: var(--accent); font-weight: 600; }
 .steps .no { color: var(--bad); }
-img.arch { width: 1120px; display: block; margin: -8px 0 0 -10px; }
+img.arch { max-height: 560px; max-width: 1120px; display: block; margin: -8px auto 0; }
 </style>
 </head>
 <body>
@@ -74,7 +74,7 @@ img.arch { width: 1120px; display: block; margin: -8px 0 0 -10px; }
 </section>
 
 <section>
-  <h2>Same model, same 40 pages</h2>
+  <h2>Same model, same 40 pages, 3 live runs</h2>
   <p class="muted">qwen3:8b on a laptop. Left: whole runbook in the prompt. Right: Night Shift. Graded by a deterministic simulator.</p>
   <table>
     <tr><th></th><th>Pages</th><th>Runbook in prompt</th><th>Night Shift</th><th>Steps</th><th>Tokens per page</th></tr>
