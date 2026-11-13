@@ -27,10 +27,15 @@ def main():
     sums = [json.loads((r / "summary.json").read_text())["results"] for r in runs]
     s = {m: {k: {f: sum(x[m][k][f] for x in sums) / len(sums) for f in ("accuracy", "steps_mean", "tokens_mean")}
              | {"n": sums[0][m][k]["n"]} for k in ("first_seen", "repeat", "trap", "all")} for m in ("baseline", "nightshift")}
-    kinds = {"nomemory": [], "noshare": [], "full": []}
+    kinds = {"nomemory": [], "noshare": [], "noledger": [], "full": []}
+    kdirs = {"noledger": [], "full": []}
     for d in abl_dirs:
         r = json.loads((d / "summary.json").read_text())
-        kinds["nomemory" if not r.get("memory", True) else "noshare" if not r.get("share", True) else "full"].append(r["results"]["nightshift"])
+        k = ("nomemory" if not r.get("memory", True) else "noshare" if not r.get("share", True)
+             else "noledger" if not r.get("ledger_on", True) else "full")
+        kinds[k].append(r["results"]["nightshift"])
+        if k in kdirs:
+            kdirs[k].append(d)
     avg = lambda k, sec, f: sum(x[sec][f] for x in kinds[k]) / len(kinds[k])  # noqa: E731
     rows = json.loads((run / "incidents.json").read_text())
 
@@ -58,6 +63,25 @@ def main():
                 f"sharing across shifts {round((avg('full', 'repeat', 'accuracy') - avg('noshare', 'repeat', 'accuracy')) * 100)} more "
                 "(13 of the 25 repeats first happened on the other shift).")
 
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from results_md import failed_applies
+    led, led_note = "", "Ledger ablation not run yet."
+    if kinds["noledger"]:
+        f = {k: sum(failed_applies(d) for d in kdirs[k]) / len(kdirs[k]) for k in kdirs}
+        ref = {k: sum(x["all"]["stale_fix_blocked"] for x in kinds[k]) / len(kinds[k]) for k in kdirs}
+        for k, label in (("noledger", "Memory without the ledger"), ("full", "Memory checked against the ledger")):
+            win = " class='win'" if k == "full" else ""
+            led += (f"<tr><td>{label}</td><td>{pct(avg(k, 'repeat', 'accuracy'))}</td><td>{pct(avg(k, 'trap', 'accuracy'))}</td>"
+                    f"<td{win}>{f[k]:.1f} per run</td><td>{ref[k]:.1f} per run</td></tr>")
+        led_note = (f"Offline, mean of {len(kinds['noledger'])} seeds. A failed fix is a real change to production "
+                    "(rollback, restart, drain, config edit) that did not clear the page.")
+    evs = [json.loads(x) for r in runs for x in (r / "events.jsonl").read_text().splitlines()]
+    hid = {e["memory_id"] for e in evs if e["kind"] == "human"}
+    reused = [x for r in runs for x in json.loads((r / "incidents.json").read_text())
+              if x["mode"] == "nightshift" and x.get("used_memory") in hid]
+    human_note = (f"Over the {len(runs)} live runs: {len(hid)} human notes, and later pages that started from one were resolved "
+                  f"{sum(x['resolved'] for x in reused)} times out of {len(reused)}.")
+
     # trap story: first trap page in the Night Shift lane that retired or blocked a fix
     trap = next((r for r in rows if r["mode"] == "nightshift" and r["trap"]), None)
     lines = []
@@ -77,7 +101,8 @@ def main():
 
     src = (ROOT / "docs" / "deck.html").read_text()
     for k, v in {"RESULT_ROWS": "".join(out), "RESULT_NOTE": note, "ABLATION_ROWS": abl, "ABLATION_NOTE": abl_note,
-                 "TRAP_STEPS": trap_steps, "LIMIT_TRAP": limit}.items():
+                 "TRAP_STEPS": trap_steps, "LIMIT_TRAP": limit,
+                 "LEDGER_ROWS": led, "LEDGER_NOTE": led_note, "HUMAN_NOTE": human_note}.items():
         src = src.replace("{{" + k + "}}", v)
     filled = ROOT / "docs" / "deck.filled.html"
     filled.write_text(src)

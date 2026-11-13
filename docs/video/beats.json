@@ -1,10 +1,10 @@
 {
  "INC-01": "Left: the whole runbook is in the prompt. Right: Night Shift searches Meko first. Night one, and neither side has seen this page.",
- "INC-09": "A few nights later, shift A gets a page it already solved. Night Shift finds its own fix in Meko in 1 step. The runbook lane needs 11.",
+ "INC-09": "A few nights later, shift A gets a page it already solved. Night Shift finds its own fix in Meko in 1 step. The runbook lane is still investigating.",
  "INC-12": "Now shift B gets a page that shift A solved. The curator promoted that fix, so B finds it in 1 step.",
  "INC-24": "A trap. The alert looks like the first page, but the cause has changed.",
  "INC-30": "Another trap. The remembered heap fix fails, so the Postgres ledger retires it. The agent gives up, and the on-call human's fix goes into Meko.",
  "INC-34": "Watch the right lane: the old API key fix fails once, then Night Shift finds the real cause and remembers it.",
- "INC-36": "Shift B now gets the cause from INC-30. The human's fix was shared overnight, so Night Shift needs 1 step. The runbook lane fails.",
+ "INC-36": "Shift B now gets the cause from INC-30. The human's fix was shared overnight, so Night Shift needs 1 step, while the runbook lane keeps searching.",
  "INC-39": "Shift B gets the cause that was learned on INC-34. The corrected fix is already shared, so Night Shift needs 1 step."
 }

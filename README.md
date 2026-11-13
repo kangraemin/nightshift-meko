@@ -11,7 +11,7 @@ A Postgres ledger records whether each remembered fix still works, so a fix that
 
 Theme: **02 Agentic support: Never Solve It Twice** (internal SRE support).
 
-- Demo video (4:13): https://kangraemin.github.io/nightshift-meko/docs/video/nightshift-demo.mp4
+- Demo video (4:14): https://kangraemin.github.io/nightshift-meko/docs/video/nightshift-demo.mp4
 - Replay a live run in the browser: https://kangraemin.github.io/nightshift-meko/dashboard/
 - Slides: [docs/deck.pdf](docs/deck.pdf)
 
@@ -40,18 +40,18 @@ The 40 pages include:
 
 Live runs: 3 seeds (each seed shuffles which shift gets which page), two real Meko members, AMP Postgres ledger, qwen3:8b. Every number below comes from the `summary.json` of a run in `results/published/`.
 
-| Pages | Runbook in prompt: resolved | Night Shift: resolved | Steps per page | Tokens per page |
-|---|---|---|---|---|
-| First-seen causes (12) | 56% (67% / 58% / 42%) | **61%** (67% / 58% / 58%) | 8.4 → 7.2 | 11,173 → 8,948 |
-| Repeats (25) | 56% (56% / 60% / 52%) | **92%** (96% / 92% / 88%) | 8.7 → 2.8 | 11,662 → 3,972 |
-| Traps (3) | 33% (33% / 33% / 33%) | 33% (33% / 33% / 33%) | 9.7 → 9.4 | 13,358 → 13,945 |
-| All pages (40) | 54% (57% / 57% / 48%) | **78%** (82% / 78% / 75%) | 8.7 → 4.6 | 11,642 → 6,213 |
+| Pages | Runbook in prompt: resolved | Night Shift: resolved | Steps per page | Tokens per page | Seconds per page |
+|---|---|---|---|---|---|
+| First-seen causes (12) | 56% (67% / 58% / 42%) | **61%** (67% / 58% / 58%) | 8.4 → 7.2 | 11,173 → 8,948 | 216 → 211 |
+| Repeats (25) | 56% (56% / 60% / 52%) | **92%** (96% / 92% / 88%) | 8.7 → 2.8 | 11,662 → 3,972 | 161 → 55 |
+| Traps (3) | 33% (33% / 33% / 33%) | 33% (33% / 33% / 33%) | 9.7 → 9.4 | 13,358 → 13,945 | 171 → 165 |
+| All pages (40) | 54% (57% / 57% / 48%) | **78%** (82% / 78% / 75%) | 8.7 → 4.6 | 11,642 → 6,213 | 178 → 110 |
 
 Cells show the mean over seeds, with each seed in brackets.
 
 What the memory layer did, summed over the live runs:
 
-- 61 fixes learned, 61 promoted by the curator, 28 retired by the ledger. The curator promotes every fix the ledger still marks valid; there is no human review step.
+- 61 fixes learned, 61 promoted by the curator, 28 retired by the ledger. These runs auto-approve every valid fix (`NIGHTSHIFT_REVIEW=auto`, no person at the keyboard); with `NIGHTSHIFT_REVIEW=manual` the curator shares only fixes a person approved with `python -m nightshift.review`.
 - 26 pages the agent lost were fixed by the on-call human, and their note went into Meko the same way. A later page started from one of those human notes 32 times and was resolved 28 times.
 - Retired fixes were refused 53 times. A fix the ledger had already retired was still applied 10 times on 8 pages: 7 of those pages were resolved, because the old cause had really come back and a diagnostic printed the same target (the fresh-evidence rule); the rest were wasted retries.
 - The librarian answered 40 searches that Meko scored as weak matches. Replaying them, `selflearning_verify` moved 34 to a better match band, 27 of them to the high band (this is Meko's own retrieval score, not a page outcome).
@@ -89,6 +89,7 @@ Same Night Shift agent and pages, offline (in-process Meko stand-in, SQLite ledg
 | `artifact_put` | after a verified fix | postmortem markdown per page |
 | `knowledgebase_upload_document` | run setup | the team runbook (with its known gaps) |
 | `selflearning_status` / `selflearning_shortfalls` / `selflearning_verify` | Librarian, every 5 nights | answer weak searches, then replay them to prove they improved |
+| `context_search` + `knowledgebase_search` + `conversation_add_message` | `nightshift/webhook.py` | a real Alertmanager alert gets the team's memory and the ledger verdict, recorded as a decision trace |
 | datapack sharing (Contributor role) | `scripts/share_datapack.py` | shift B is a real second member, not a second agent id |
 
 ### Postgres inside the context
@@ -96,7 +97,7 @@ Same Night Shift agent and pages, offline (in-process Meko stand-in, SQLite ledg
 Retrieval alone cannot tell a good memory from a stale one.
 Night Shift keeps a small ledger next to the memories (AMP Postgres in the live run, SQLite offline):
 
-- `fix_validity(memory_id, fix_id, service, symptom, learned_by, status, promoted, retired_reason, replaced_by)`
+- `fix_validity(memory_id, fix_id, service, symptom, learned_by, status, promoted, approval, approved_by, retired_reason, replaced_by)`
 - `incidents(mode, inc_id, shift, cause, first_seen, trap, resolved, steps, tokens_in, tokens_out, seconds, stale_fix_applied)`
 - `services(name, owner_shift)`
 
@@ -105,6 +106,25 @@ When a remembered fix fails, the ledger retires it with the reason and later poi
 From then on the Fixer refuses that fix and target for the same alert, unless a diagnostic command in the current page prints that exact target.
 An old cause can come back (a rollback to the same healthy release, the same flag), and fresh evidence beats an old retirement.
 Promoted memories are evicted from private memory and cannot be edited over MCP, so the ledger is how the team keeps memory honest.
+
+### People in the loop
+
+Two places where a person, not the model, has the last word:
+
+- **Review before sharing.** A learned fix stays private to its shift until it is approved. `python -m nightshift.review --run-id prod list` shows the queue, `approve <memory_id> --by alice` lets the curator share it at the end of the night, `reject <memory_id> --reason "..."` retires it in the ledger so the Fixer refuses it. The benchmark sets `NIGHTSHIFT_REVIEW=auto` and records every approval as `auto (benchmark)`; production sets `manual`.
+- **Fixes made by hand.** When the agent gives up and an engineer fixes the page, `python -m nightshift.handback --shift A --paged ... --fix F04 --target v5.7.0 ...` stores their note in Meko as that shift's memory, marked as written by a person. In the live runs this happened on 26 pages, and later pages that started from one of those notes were resolved 28 times out of 32 (see Results).
+
+### Use it on real alerts
+
+`python -m nightshift.webhook --run-id prod --port 9095` is an Alertmanager receiver. For each firing alert it searches the shift's memory and the team's knowledge in Meko, joins every hit with the ledger, and answers (and posts to `SLACK_WEBHOOK_URL` if set). Example of the answer format (the case tested in `tests/test_review_webhook.py`):
+
+```
+*inventory-svc*: inventory-svc OOMKilled, 4 restarts in 10 min (memory match: high)
+Seen before: F04 target v5.7.0, learned by shift A (human) on INC-30. Ledger: still valid.
+Do not re-apply F05 target inventory-jvm-opts: INC-30: F05 applied, symptoms persisted; root cause changed.
+```
+
+It only suggests; it never touches production. Labels used: `service` (or `job`), `summary` annotation, optional `shift`.
 
 ### The Fixer guardrail
 
@@ -120,7 +140,8 @@ Offline needs no account (in-process Meko stand-in with the same interface, SQLi
 make setup            # pip install, ollama pull qwen3:8b
 make demo-offline     # 40 pages, both modes, about 45 minutes on an M-series Mac
 make dashboard        # then open the URL it prints
-make test             # guardrail and ledger tests, no model needed
+make demo-quick       # first 12 pages (5 repeats), Night Shift only
+make test             # guardrail, ledger, review queue and webhook tests, no model needed
 ```
 
 Live run (two Meko members sharing one datapack, AMP Postgres ledger):
@@ -142,7 +163,10 @@ Replay any run in the browser: `dashboard/index.html?run=../results/published/<r
 
 - `nightshift/sim.py`: incident simulator, 15 causes, 40-page schedule, deterministic grading
 - `nightshift/agents.py`: baseline agent, Night Shift agent, human handback, curator, librarian, Fixer guardrail
-- `tests/`: Fixer refusals, the fresh-evidence rule, ledger learn/retire/replace, human handback
+- `nightshift/review.py`: review queue (approve / reject before the curator shares)
+- `nightshift/handback.py`: write down a fix made by hand
+- `nightshift/webhook.py`: Alertmanager receiver (triage only)
+- `tests/`: Fixer refusals, the fresh-evidence rule, ledger learn/retire/replace, human handback, review queue, webhook, ledger ablation
 - `nightshift/meko.py`: minimal MCP client (streamable HTTP, no SDK) and the offline stand-in
 - `nightshift/ledger.py`: Postgres / SQLite ledger
 - `nightshift/run.py`: benchmark runner, writes `events.jsonl`, `incidents.json`, `summary.json`
@@ -152,7 +176,7 @@ Replay any run in the browser: `dashboard/index.html?run=../results/published/<r
 
 ## Limits
 
-- The incidents are simulated. Real pages have messier evidence.
+- The benchmark incidents are simulated, so the scores are measured rather than judged; real pages have messier evidence. The webhook runs the same triage on real alerts, but the agent's diagnostics and fixes are only wired to the simulator.
 - One 8B local model. A larger model would solve more first-seen pages in both modes.
 - No Anthropic or OpenAI API is called anywhere. Meko does its own memory extraction on its side.
 

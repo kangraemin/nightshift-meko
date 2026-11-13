@@ -99,7 +99,9 @@ def test_fresh_evidence_rules():
 def test_ledger_learn_retire_replace():
     lg = Ledger("t1")
     lg.learn("m1", "F01", "checkout-api", "pool full", "A", "INC-01")
-    assert lg.status("m1")["status"] == "valid" and lg.unpromoted_valid() == ["m1"]
+    assert lg.status("m1")["status"] == "valid" and lg.unpromoted_valid() == []  # waits for review
+    lg.approve("m1", "alice")
+    assert lg.unpromoted_valid() == ["m1"]
     lg.mark_promoted(["m1"])
     assert lg.unpromoted_valid() == []
     lg.retire("m1", "did not work on INC-24")

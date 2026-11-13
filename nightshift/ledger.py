@@ -31,7 +31,7 @@ SCHEMA = [
 
 
 class Ledger:
-    def __init__(self, run_id: str):
+    def __init__(self, run_id: str, fresh: bool = True):
         self.run_id = run_id
         host = os.environ.get("NIGHTSHIFT_PG_HOST")
         if host and os.environ.get("NIGHTSHIFT_LEDGER", "pg") == "pg":
@@ -48,8 +48,20 @@ class Ledger:
             self.ph, self.kind = "?", "sqlite"
         for s in SCHEMA:
             self._x(s)
-        for t in ("services", "incidents", "fix_validity"):  # a re-run with the same id starts clean
-            self._x(f"DELETE FROM {t} WHERE run_id=?", (run_id,))
+        # review columns (added after the first release; older ledgers get them here)
+        for col in ("approval TEXT DEFAULT 'pending'", "approved_by TEXT"):
+            try:
+                self._x(f"ALTER TABLE fix_validity ADD COLUMN {'IF NOT EXISTS ' if self.kind == 'postgres' else ''}{col}")
+            except Exception:  # sqlite: the column already exists
+                pass
+        if fresh:  # a benchmark re-run with the same id starts clean
+            for t in ("services", "incidents", "fix_validity"):
+                self._x(f"DELETE FROM {t} WHERE run_id=?", (run_id,))
+
+    @classmethod
+    def open(cls, run_id: str) -> "Ledger":
+        """Attach to an existing ledger without clearing it (review queue, webhook, handback)."""
+        return cls(run_id, fresh=False)
 
     def _x(self, sql: str, args: tuple = ()):
         cur = self.db.cursor()
@@ -93,8 +105,25 @@ class Ledger:
                 (new_memory_id, self.run_id, old_memory_id))
 
     def unpromoted_valid(self) -> list[str]:
-        return [r[0] for r in self._x("SELECT memory_id FROM fix_validity WHERE run_id=? AND status='valid' AND promoted=0",
-                                      (self.run_id,))]
+        """Fixes the curator may share: still valid, not yet promoted, approved by a reviewer."""
+        return [r[0] for r in self._x("SELECT memory_id FROM fix_validity WHERE run_id=? AND status='valid' AND promoted=0"
+                                      " AND approval='approved'", (self.run_id,))]
+
+    def pending_review(self) -> list[dict]:
+        k = ["memory_id", "fix_id", "service", "symptom", "learned_by", "learned_in"]
+        rows = self._x("SELECT memory_id, fix_id, service, symptom, learned_by, learned_in FROM fix_validity"
+                       " WHERE run_id=? AND status='valid' AND promoted=0 AND (approval IS NULL OR approval='pending')"
+                       " ORDER BY updated_at", (self.run_id,))
+        return [dict(zip(k, r)) for r in rows]
+
+    def approve(self, memory_id, who: str):
+        self._x("UPDATE fix_validity SET approval='approved', approved_by=?, updated_at=? WHERE run_id=? AND memory_id=?",
+                (who, time.time(), self.run_id, memory_id))
+
+    def reject(self, memory_id, who: str, reason: str):
+        """A reviewer says this fix is wrong: it is never shared, and the Fixer treats it as retired."""
+        self._x("UPDATE fix_validity SET approval='rejected', approved_by=?, status='retired', retired_reason=?, updated_at=?"
+                " WHERE run_id=? AND memory_id=?", (who, f"rejected by {who}: {reason}", time.time(), self.run_id, memory_id))
 
     def mark_promoted(self, ids):
         for i in ids:

@@ -19,6 +19,7 @@ the prompt and no memory at all.
 from __future__ import annotations
 
 import json
+import os
 import re
 import time
 from dataclasses import dataclass, field
@@ -183,9 +184,11 @@ def _hit_line(h, st):
 
 
 def run_nightshift(inc: Incident, meko, ledger, emit, seed: int, model: str, share: bool = True,
-                   memory: bool = True) -> Result:
+                   memory: bool = True, use_ledger: bool = True) -> Result:
     """memory=False is the retrieval-only control: the runbook is searched in Meko instead of pasted,
-    but nothing is remembered, retired or promoted."""
+    but nothing is remembered, retired or promoted.
+    use_ledger=False is the ledger ablation: memories are still learned and shared, but every remembered
+    fix looks valid forever (no retirement, no refusal of stale fixes), as with a plain memory store."""
     res = Result("nightshift", inc)
     t = time.time()
     agent = f"nightshift:shift-{inc.shift.lower()}"
@@ -200,6 +203,8 @@ def run_nightshift(inc: Incident, meko, ledger, emit, seed: int, model: str, sha
     lines, mem_map, shown, retired = [], {}, 0, {}
     hits = private[:3] + collective[:4]
     stats = [ledger.status(h.memory_id) if h.memory_id else None for h in hits]
+    if not use_ledger:
+        stats = [dict(st, status="valid", retired_reason=None) if st else None for st in stats]
     # Only memories learned on the same paged service speak for this alert. A memory from another
     # alert that the model misapplies here must not be retired or blocked for its own alert.
     same = [bool(st) and str(st.get("symptom") or "").startswith(f"{inc.cause.paged}: ") for st in stats]
@@ -250,7 +255,7 @@ def run_nightshift(inc: Incident, meko, ledger, emit, seed: int, model: str, sha
 
     final_fix = res.history[-1]["fix"] if res.resolved else None
     same_fix_new_target = any(fix == final_fix for _, fix, _ in res.retired)
-    for mid, fix, obs in res.retired:
+    for mid, fix, obs in (res.retired if use_ledger else []):
         reason = (f"{inc.id}: target changed between incidents; superseded by a refined memory" if fix == final_fix
                   else f"{inc.id}: {fix} applied, symptoms persisted; root cause changed")
         ledger.retire(mid, reason)
@@ -285,17 +290,24 @@ def run_nightshift(inc: Incident, meko, ledger, emit, seed: int, model: str, sha
     return res
 
 
+def human_note(inc_id, paged, alert, cause, evidence_cmd, evidence_out, fix, target, service, shift, changing_cmd=None):
+    """The memory text for a fix written by a person (also used by `python -m nightshift.handback`)."""
+    text = (f"On-call human fix (the agent could not resolve {inc_id}). Page on {paged}: '{alert}'. "
+            f"Root cause: {cause}. Evidence: {evidence_cmd} showed '{evidence_out[:140]}'. "
+            f"Resolution: apply_fix {fix} target {target} on {service} (written by the shift {shift} on-call engineer).")
+    if changing_cmd:
+        text += f" The target changes between incidents: read it with {changing_cmd} first."
+    return text
+
+
 def human_handback(res: Result, meko, ledger, emit):
     """The agent gave up, so the on-call human fixed the page. Their note goes into Meko like any other fix,
     marked as written by a person, so the next shift finds it at triage (theme 02: learn from people)."""
     inc = res.inc
     c = inc.cause
     cmd, out = next(iter(c.clues.items()))
-    text = (f"On-call human fix (the agent could not resolve {inc.id}). Page on {c.paged}: '{inc.alert}'. "
-            f"Root cause: {c.title}. Evidence: {cmd} {c.service} showed '{inc._fmt(out)[:140]}'. "
-            f"Resolution: apply_fix {c.fix} target {inc.target} on {c.service} (written by the shift {inc.shift} on-call engineer).")
-    if "{" in c.target:
-        text += f" The target changes between incidents: read it with {cmd} first."
+    text = human_note(inc.id, c.paged, inc.alert, c.title, f"{cmd} {c.service}", inc._fmt(out), c.fix, inc.target,
+                      c.service, inc.shift, cmd if "{" in c.target else None)
     mid = meko.memory_add(res.cid, res.agent, text, {"incident": inc.id, "fix": c.fix, "service": c.service,
                                                      "verified": True, "shift": inc.shift, "source": "human"})
     if mid:
@@ -307,15 +319,28 @@ def human_handback(res: Result, meko, ledger, emit):
     return mid
 
 
-def curator(owner_meko, ledger, emit, night: int):
+def curator(owner_meko, ledger, emit, night: int, review: str | None = None):
+    """End of night: share every fix that is still valid AND approved by a reviewer.
+
+    review="manual" (production): only fixes a person approved with `python -m nightshift.review approve`
+    are shared; the rest wait in the review queue. review="auto" (the benchmark, no human at the
+    keyboard): every valid fix is approved as "auto (benchmark)". Default: NIGHTSHIFT_REVIEW or "auto".
+    """
+    review = review or os.environ.get("NIGHTSHIFT_REVIEW", "auto")
+    if review == "auto":
+        for row in ledger.pending_review():
+            ledger.approve(row["memory_id"], "auto (benchmark)")
+    waiting = len(ledger.pending_review())
     ids = ledger.unpromoted_valid()
     if not ids:
+        if waiting:
+            emit("promote", None, {"night": night, "ids": [], "waiting_review": waiting})
         return []
     cid = owner_meko.conversation("nightshift:curator", f"night {night} approvals")
     r = owner_meko.promote(cid, ids)
     ok = (r or {}).get("inserted_ids", []) + (r or {}).get("updated_ids", [])
     ledger.mark_promoted(ok)
-    emit("promote", None, {"night": night, "ids": ok})
+    emit("promote", None, {"night": night, "ids": ok, "waiting_review": waiting})
     return ok
 
 

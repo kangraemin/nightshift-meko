@@ -26,6 +26,13 @@ def events(d):
     return [json.loads(x) for x in (Path(d) / "events.jsonl").read_text().splitlines()]
 
 
+def failed_applies(d):
+    """Fixes actually applied (not refused by the Fixer) that did not clear the page, Night Shift lane."""
+    inc = json.loads((Path(d) / "incidents.json").read_text())
+    return sum(1 for x in inc if x.get("mode") == "nightshift" for h in x["history"]
+               if h["action"] == "apply_fix" and not h.get("ok") and not h["obs"].startswith("REFUSED"))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--live", nargs="+", required=True)
@@ -38,8 +45,8 @@ def main():
                "two real Meko members, AMP Postgres ledger, qwen3:8b. Every number below comes from the "
                "`summary.json` of a run in `results/published/`.")
     out.append("")
-    out.append("| Pages | Runbook in prompt: resolved | Night Shift: resolved | Steps per page | Tokens per page |")
-    out.append("|---|---|---|---|---|")
+    out.append("| Pages | Runbook in prompt: resolved | Night Shift: resolved | Steps per page | Tokens per page | Seconds per page |")
+    out.append("|---|---|---|---|---|---|")
     for key, label in SETS:
         b = [r["results"]["baseline"][key] for r in runs]
         m = [r["results"]["nightshift"][key] for r in runs]
@@ -50,7 +57,7 @@ def main():
         win = mean(m, "accuracy") > mean(b, "accuracy")
         cell_n = (f"**{pct(mean(m, 'accuracy'))}**" if win else pct(mean(m, "accuracy"))) + (f" ({per})" if n > 1 else "")
         out.append(f"| {label} ({b[0]['n']}) | {cell_b} | {cell_n} | {mean(b, 'steps_mean'):.1f} → {mean(m, 'steps_mean'):.1f} "
-                   f"| {mean(b, 'tokens_mean'):,.0f} → {mean(m, 'tokens_mean'):,.0f} |")
+                   f"| {mean(b, 'tokens_mean'):,.0f} → {mean(m, 'tokens_mean'):,.0f} | {mean(b, 'seconds_mean'):.0f} → {mean(m, 'seconds_mean'):.0f} |")
     out.append("")
     if n > 1:
         out.append("Cells show the mean over seeds, with each seed in brackets.")
@@ -79,7 +86,8 @@ def main():
         inc = json.loads((Path(d) / "incidents.json").read_text())
         reused += [x for x in inc if x.get("mode") == "nightshift" and x.get("used_memory") in human_ids]
     out.append(f"- {learned} fixes learned, {promoted} promoted by the curator, {retired} retired by the ledger. "
-               "The curator promotes every fix the ledger still marks valid; there is no human review step.")
+               "These runs auto-approve every valid fix (`NIGHTSHIFT_REVIEW=auto`, no person at the keyboard); "
+               "with `NIGHTSHIFT_REVIEW=manual` the curator shares only fixes a person approved with `python -m nightshift.review`.")
     out.append(f"- {len(humans)} pages the agent lost were fixed by the on-call human, and their note went into Meko the same way. "
                f"A later page started from one of those human notes {len(reused)} times and was resolved {sum(x['resolved'] for x in reused)} times.")
     out.append(f"- Retired fixes were refused {blocked} times. A fix the ledger had already retired was still applied {stale} time{'s' if stale != 1 else ''}"
@@ -89,10 +97,15 @@ def main():
                f"`selflearning_verify` moved {improved} to a better match band, {to_high} of them to the high band "
                "(this is Meko's own retrieval score, not a page outcome).")
     out.append("")
-    kinds = {"nomemory": [], "noshare": [], "full": []}
+    kinds = {"nomemory": [], "noshare": [], "noledger": [], "full": []}
+    dirs = {"noledger": [], "full": []}
     for d in a.ablation:
         r = load(d)
-        kinds["nomemory" if not r.get("memory", True) else "noshare" if not r.get("share", True) else "full"].append(r)
+        k = ("nomemory" if not r.get("memory", True) else "noshare" if not r.get("share", True)
+             else "noledger" if not r.get("ledger_on", True) else "full")
+        kinds[k].append(r)
+        if k in dirs:
+            dirs[k].append(d)
     ns = len(kinds["full"])
     avg = lambda rs, k, f: sum(r["results"]["nightshift"][k][f] for r in rs) / len(rs)  # noqa: E731
     out.append("### Where does the gain come from?")
@@ -113,6 +126,23 @@ def main():
                "Its first-seen score is the share of the gain that comes from a shorter, focused prompt rather than from remembering.")
     out.append("- 13 of the 25 repeats first happened on the other shift. Without sharing, those start from scratch.")
     out.append("")
+    if kinds["noledger"]:
+        out.append("### Does the Postgres ledger matter?")
+        out.append("")
+        out.append(f"Same offline runs, {len(kinds['noledger'])} seeds, with the ledger switched off (`--no-ledger`): memories are still learned "
+                   "and shared, but every remembered fix looks valid forever, like a plain memory store.")
+        out.append("")
+        out.append("| Night Shift lane, offline | Repeats | Traps | All pages | Failed fixes applied to production | Stale fixes refused |")
+        out.append("|---|---|---|---|---|---|")
+        for k, label in (("noledger", "Memory without the ledger (`--no-ledger`)"), ("full", "Memory checked against the ledger")):
+            rs, ds = kinds[k], dirs[k]
+            fails = sum(failed_applies(d) for d in ds) / len(ds)
+            ref = sum(r["results"]["nightshift"]["all"]["stale_fix_blocked"] for r in rs) / len(rs)
+            out.append(f"| {label} | {pct(avg(rs, 'repeat', 'accuracy'))} | {pct(avg(rs, 'trap', 'accuracy'))} | {pct(avg(rs, 'all', 'accuracy'))} "
+                       f"| {fails:.1f} per run | {ref:.1f} per run |")
+        out.append("")
+        out.append("- A failed fix is a real change (rollback, restart, drain, config edit) that did not clear the page; the simulator counts each one.")
+        out.append("")
     t = [r["results"]["nightshift"]["trap"]["accuracy"] for r in runs]
     tb = [r["results"]["baseline"]["trap"]["accuracy"] for r in runs]
     out.append("### What did not improve")

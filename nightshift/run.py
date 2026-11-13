@@ -62,10 +62,11 @@ def main():
     ap.add_argument("--no-librarian", action="store_true")
     ap.add_argument("--no-share", action="store_true", help="ablation: private memory only, no curator, no collective search")
     ap.add_argument("--no-memory", action="store_true", help="control: Night Shift searches the runbook in Meko but remembers nothing")
+    ap.add_argument("--no-ledger", action="store_true", help="ablation: memories never expire; no retirement, no stale-fix refusal")
     ap.add_argument("--no-humans", action="store_true", help="do not store the on-call human's fix after a page the agent lost")
     a = ap.parse_args()
 
-    run_id = a.run_id or f"{'off' if a.offline else 'live'}-s{a.seed}{'-noshare' if a.no_share else ''}{'-nomemory' if a.no_memory else ''}-{time.strftime('%m%d%H%M')}"
+    run_id = a.run_id or f"{'off' if a.offline else 'live'}-s{a.seed}{'-noshare' if a.no_share else ''}{'-nomemory' if a.no_memory else ''}{'-noledger' if a.no_ledger else ''}-{time.strftime('%m%d%H%M')}"
     out = ROOT / "results" / run_id
     out.mkdir(parents=True, exist_ok=True)
     if a.offline:
@@ -101,7 +102,7 @@ def main():
             else:
                 meko = ma if inc.shift == "A" else mb
                 r = agents.run_nightshift(fresh, meko, ledger, emit, a.seed, llm.MODEL, share=not a.no_share,
-                                          memory=not a.no_memory)
+                                          memory=not a.no_memory, use_ledger=not a.no_ledger)
                 if not r.resolved and not a.no_memory and not a.no_humans:
                     agents.human_handback(r, meko, ledger, emit)
                 if r.resolved:
@@ -117,7 +118,7 @@ def main():
         agents.curator(ma, ledger, emit, night)
 
     summary = {"run_id": run_id, "seed": a.seed, "model": llm.MODEL, "ledger": ledger.kind,
-               "offline": a.offline, "share": not a.no_share, "memory": not a.no_memory, "humans": not a.no_humans, "incidents": len(incidents), "results": summarize(rows),
+               "offline": a.offline, "share": not a.no_share, "memory": not a.no_memory, "ledger_on": not a.no_ledger, "humans": not a.no_humans, "incidents": len(incidents), "results": summarize(rows),
                "meko_calls": {"A": dict(ma.calls), "B": dict(mb.calls)},
                "fix_validity": [list(map(str, r)) for r in ledger.table("fix_validity")]}
     (out / "incidents.json").write_text(json.dumps(rows, ensure_ascii=False, indent=1))

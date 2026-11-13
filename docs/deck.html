@@ -95,6 +95,25 @@ img.arch { max-height: 560px; max-width: 1120px; display: block; margin: -8px au
 </section>
 
 <section>
+  <h2>Does the ledger matter?</h2>
+  <p>Same offline runs with the Postgres ledger switched off: memories are still learned and shared, but every remembered fix looks valid forever.</p>
+  <table>
+    <tr><th>Night Shift lane</th><th>Repeats</th><th>Traps</th><th>Failed fixes applied</th><th>Stale fixes refused</th></tr>
+    {{LEDGER_ROWS}}
+  </table>
+  <p style="margin-top:26px">{{LEDGER_NOTE}}</p>
+</section>
+
+<section>
+  <h2>People stay in the loop</h2>
+  <ul>
+    <li><b>Review before sharing.</b> A learned fix stays with its shift until a person approves it (<code>nightshift.review approve</code>). A rejected fix is retired, so the Fixer refuses it.</li>
+    <li><b>Fixes made by hand.</b> When the agent gives up, the engineer's fix goes into Meko as that shift's memory, marked as written by a person. {{HUMAN_NOTE}}</li>
+    <li><b>Real alerts.</b> An Alertmanager webhook runs the same triage on a live alert: what the team already fixed, who fixed it on which page, and which old fix the ledger says not to re-apply. It suggests; it never acts.</li>
+  </ul>
+</section>
+
+<section>
   <h2>Every Meko layer has a job</h2>
   <table style="font-size:19px">
     <tr><td>Conversations + messages</td><td class="muted">decision trace for every page, reasoning and plan</td></tr>
@@ -114,7 +133,7 @@ img.arch { max-height: 560px; max-width: 1120px; display: block; margin: -8px au
     <li>The incidents are simulated so that grading is exact. Real pages are messier.</li>
     <li>One 8B local model, no paid API. A larger model solves more first-seen pages in both modes.</li>
     <li>{{LIMIT_TRAP}}</li>
-    <li>Next: feed real PagerDuty or Opsgenie pages, and let the ledger expire fixes after a deploy.</li>
+    <li>Next: wire the agent's diagnostics to real tools behind the webhook, and let the ledger expire fixes after a deploy.</li>
   </ul>
   <p style="margin-top:30px">Code, replay and results: github.com/kangraemin/nightshift-meko</p>
 </section>
