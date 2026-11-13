@@ -1,11 +1,11 @@
 {
- "i_title": "Night Shift. On-call agents that never solve the same incident twice, even when the other shift solved it.",
+ "i_title": "Night Shift. On-call agents that never solve the same incident twice, even when the other shift solved it. Over three live runs, repeat pages went from 56 to 92 percent resolved.",
  "i_p1": "Shift A fixes the 2 a.m. page. The fix lives in their own notes.",
  "i_p2": "The next night, shift B gets the same page, and starts from the wiki again.",
  "i_p3": "And sometimes a remembered fix stops working, but people keep applying it.",
  "i_a1": "Night Shift runs the two shifts as two Meko members who share one datapack.",
  "i_a2": "Each page is traced in a Meko conversation. A verified fix becomes a private memory and a postmortem.",
- "i_a3": "At the end of the night, the curator promotes those fixes to the team's collective knowledge.",
+ "i_a3": "At the end of the night, the curator promotes the fixes a reviewer approved to the team's collective knowledge. When the agent gives up, the engineer's own fix goes in the same way.",
  "i_a4": "A Postgres ledger is joined with every memory hit, and records whether each remembered fix still works.",
  "i_a5": "Now, the same 40 pages, answered twice by the same local model.",
  "b_INC-01": "Left: the whole runbook is in the prompt. Right: Night Shift searches Meko first. Night one, and neither side has seen this page.",

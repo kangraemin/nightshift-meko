@@ -132,7 +132,7 @@ def main():
         out.append(f"Same offline runs, {len(kinds['noledger'])} seeds, with the ledger switched off (`--no-ledger`): memories are still learned "
                    "and shared, but every remembered fix looks valid forever, like a plain memory store.")
         out.append("")
-        out.append("| Night Shift lane, offline | Repeats | Traps | All pages | Failed fixes applied to production | Stale fixes refused |")
+        out.append("| Night Shift lane, offline | Repeats | Traps | All pages | Failed fixes applied to production | Fixes refused by the Fixer |")
         out.append("|---|---|---|---|---|---|")
         for k, label in (("noledger", "Memory without the ledger (`--no-ledger`)"), ("full", "Memory checked against the ledger")):
             rs, ds = kinds[k], dirs[k]
@@ -142,6 +142,11 @@ def main():
                        f"| {fails:.1f} per run | {ref:.1f} per run |")
         out.append("")
         out.append("- A failed fix is a real change (rollback, restart, drain, config edit) that did not clear the page; the simulator counts each one.")
+        fl = {k: sum(failed_applies(d) for d in dirs[k]) / len(dirs[k]) for k in dirs}
+        out.append(f"- Pages resolved barely move: the ledger does not find causes. What it changes is how many wrong changes reach production: "
+                   f"{fl['noledger']:.1f} → {fl['full']:.1f} per run ({round((1 - fl['full'] / fl['noledger']) * 100)}% fewer).")
+        out.append("- Without the ledger the Fixer still refuses a fix that already failed on the same page; "
+                   "the ledger adds refusals of fixes that failed on earlier pages, on either shift.")
         out.append("")
     t = [r["results"]["nightshift"]["trap"]["accuracy"] for r in runs]
     tb = [r["results"]["baseline"]["trap"]["accuracy"] for r in runs]

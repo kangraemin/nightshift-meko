@@ -1,0 +1,2395 @@
+[
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-01",
+  "shift": "A",
+  "night": 0,
+  "cause": "C01",
+  "alert": "checkout is throwing 502s, p99 latency 3s",
+  "first_seen": 1,
+  "trap": 0,
+  "resolved": 1,
+  "steps": 5,
+  "tokens_in": 4275,
+  "tokens_out": 291,
+  "seconds": 28.38,
+  "used_memory": null,
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 0,
+  "match_quality": "low",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F01",
+    "target": "checkout",
+    "service": "checkout-api",
+    "obs": "REFUSED by Fixer: target 'checkout' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "Raising the DB pool size and killing idle-in-transaction sessions will alleviate pool pressure and reduce latency.",
+    "ok": false
+   },
+   {
+    "action": "get_pool_stats",
+    "service": "checkout-api",
+    "obs": "checkout-api: pool cl_waiting=0 cl_active=10 maxwait=0s",
+    "reason": "Check if the pgbouncer pool is saturated and clients are waiting"
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F01",
+    "target": "checkout",
+    "service": "checkout-api",
+    "obs": "REFUSED by Fixer: target 'checkout' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "Raise the connection pool size to alleviate pressure on the database",
+    "ok": false
+   },
+   {
+    "action": "get_pool_stats",
+    "service": "pgbouncer",
+    "obs": "pool pgb-checkout-rw: cl_active=20 cl_waiting=120 sv_active=20 maxwait=3s size=20",
+    "reason": ""
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F01",
+    "target": "pgb-checkout-rw",
+    "service": "pgbouncer",
+    "obs": "raise_db_pool <pool name> pgb-checkout-rw applied on pgbouncer: alerts cleared, error rate back to baseline",
+    "reason": "Raising the connection pool size to alleviate pressure and kill idle-in-transaction sessions.",
+    "ok": true
+   }
+  ],
+  "root_cause": "PgBouncer pool is saturated causing 502s in checkout-api",
+  "learned": "mem-0004",
+  "retired": []
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-02",
+  "shift": "A",
+  "night": 0,
+  "cause": "C02",
+  "alert": "login failing: auth returns 5xx, clients report SSL errors",
+  "first_seen": 1,
+  "trap": 0,
+  "resolved": 0,
+  "steps": 12,
+  "tokens_in": 11738,
+  "tokens_out": 501,
+  "seconds": 35.01,
+  "used_memory": null,
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 0,
+  "match_quality": "low",
+  "history": [
+   {
+    "action": "get_certs",
+    "service": "auth",
+    "obs": "auth: certificates valid for 66 more days",
+    "reason": "SSL errors suggest certificate issues, check expiry and reload"
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F02",
+    "target": "auth.internal",
+    "service": "auth",
+    "obs": "REFUSED by Fixer: target 'auth.internal' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "Renewing and reloading the certificate will resolve potential TLS issues causing login failures",
+    "ok": false
+   },
+   {
+    "action": "get_certs",
+    "service": "auth",
+    "obs": "(same output as before) auth: certificates valid for 66 more days -- you already ran get_certs on auth; try a different command or service",
+    "reason": ""
+   },
+   {
+    "action": "get_certs",
+    "service": "gateway",
+    "obs": "gateway: certificates valid for 295 more days",
+    "reason": ""
+   },
+   {
+    "action": "get_certs",
+    "service": "postgres",
+    "obs": "postgres: certificates valid for 276 more days",
+    "reason": "Verify if the PostgreSQL certificate is valid and reload if necessary"
+   },
+   {
+    "action": "get_certs",
+    "service": "pgbouncer",
+    "obs": "pgbouncer: certificates valid for 215 more days",
+    "reason": ""
+   },
+   {
+    "action": "get_logs",
+    "service": "auth",
+    "obs": "auth: symptom confirmed (login failing: auth returns 5xx, clients report SSL errors); own cpu/mem normal; errors are on upstream calls",
+    "reason": "Logs may reveal SSL errors or certificate issues causing 5xx errors in auth"
+   },
+   {
+    "action": "get_dependencies",
+    "service": "auth",
+    "obs": "auth upstreams: edge-lb DEGRADED (errors/timeouts from here), postgres healthy",
+    "reason": "Identify if auth is failing due to a dependent service like database or external API"
+   },
+   {
+    "action": "get_dependencies",
+    "service": "edge-lb",
+    "obs": "edge-lb: all upstreams healthy (p99 < 23ms)",
+    "reason": "Identify if edge-lb is the source of SSL errors or upstream failures affecting auth"
+   },
+   {
+    "action": "get_pool_stats",
+    "service": "auth",
+    "obs": "auth: pool cl_waiting=0 cl_active=12 maxwait=0s",
+    "reason": "Check if the connection pool is saturated or if there are idle-in-transaction sessions causing delays"
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F02",
+    "target": "edge-lb",
+    "service": "edge-lb",
+    "obs": "REFUSED by Fixer: target 'edge-lb' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "Renew and reload TLS certificate on edge-lb to resolve SSL errors and upstream connectivity issues",
+    "ok": false
+   },
+   {
+    "action": "get_certs",
+    "service": "edge-lb",
+    "obs": "cert auth-edge-2026 (auth.internal) notAfter=yesterday 23:59 UTC  status=EXPIRED",
+    "reason": ""
+   }
+  ],
+  "root_cause": "SSL errors and 5xx from auth due to degraded edge-lb",
+  "learned": "mem-0007",
+  "retired": []
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-03",
+  "shift": "B",
+  "night": 1,
+  "cause": "C03",
+  "alert": "push and email notifications are late (~8 min)",
+  "first_seen": 1,
+  "trap": 0,
+  "resolved": 1,
+  "steps": 3,
+  "tokens_in": 2714,
+  "tokens_out": 180,
+  "seconds": 12.83,
+  "used_memory": null,
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 0,
+  "match_quality": "low",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F03",
+    "target": "notify.outbound",
+    "service": "notify-queue",
+    "obs": "REFUSED by Fixer: target 'notify.outbound' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "restart crashed consumers and scale to drain the queue",
+    "ok": false
+   },
+   {
+    "action": "get_queue",
+    "service": "notify-queue",
+    "obs": "queue notify.outbound depth=400, consumer group notify-sender-v2: 0/6 running (CrashLoopBackOff)",
+    "reason": "To determine if the notify.outbound queue is deep and if consumers are running or crashed."
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F03",
+    "target": "notify-sender-v2",
+    "service": "notify-queue",
+    "obs": "restart_consumers <consumer group> notify-sender-v2 applied on notify-queue: alerts cleared, error rate back to baseline",
+    "reason": "Restart crashed consumers and scale to drain the notify.outbound queue",
+    "ok": true
+   }
+  ],
+  "root_cause": "Queue consumers are crashed and not running",
+  "learned": "mem-0011",
+  "retired": []
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-04",
+  "shift": "B",
+  "night": 1,
+  "cause": "C01",
+  "alert": "checkout-api 502 rate 31% and p99 5s",
+  "first_seen": 0,
+  "trap": 0,
+  "resolved": 1,
+  "steps": 1,
+  "tokens_in": 1101,
+  "tokens_out": 88,
+  "seconds": 7.29,
+  "used_memory": "mem-0004",
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 0,
+  "match_quality": "low",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F01",
+    "target": "pgb-checkout-rw",
+    "service": "pgbouncer",
+    "obs": "raise_db_pool <pool name> pgb-checkout-rw applied on pgbouncer: alerts cleared, error rate back to baseline",
+    "reason": "Raising the connection pool size and killing idle-in-transaction sessions will alleviate the pool saturation and reduce 502 errors.",
+    "ok": true
+   }
+  ],
+  "root_cause": "PgBouncer pool is saturated causing 502s in checkout-api",
+  "learned": null,
+  "retired": []
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-05",
+  "shift": "A",
+  "night": 2,
+  "cause": "C04",
+  "alert": "orders-worker failing jobs since the last release",
+  "first_seen": 1,
+  "trap": 0,
+  "resolved": 1,
+  "steps": 3,
+  "tokens_in": 2772,
+  "tokens_out": 191,
+  "seconds": 14.58,
+  "used_memory": null,
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 0,
+  "match_quality": "low",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F04",
+    "target": "orders-worker",
+    "service": "orders-worker",
+    "obs": "REFUSED by Fixer: target 'orders-worker' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "Rolling back to a previous version can resolve issues introduced by the last release.",
+    "ok": false
+   },
+   {
+    "action": "get_deploys",
+    "service": "orders-worker",
+    "obs": "orders-worker v2.4.0 deployed 2 min ago; previous release v2.3.0 was healthy",
+    "reason": "To determine if the recent deploy caused the orders-worker to start failing jobs"
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F04",
+    "target": "v2.3.0",
+    "service": "orders-worker",
+    "obs": "rollback_deploy <version to roll back TO> v2.3.0 applied on orders-worker: alerts cleared, error rate back to baseline",
+    "reason": "Rolling back to the previous healthy release to resolve the failing jobs issue.",
+    "ok": true
+   }
+  ],
+  "root_cause": "Recent deploy caused errors in orders-worker",
+  "learned": "mem-0017",
+  "retired": []
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-06",
+  "shift": "A",
+  "night": 2,
+  "cause": "C05",
+  "alert": "inventory-svc OOMKilled, 18 restarts in 10 min",
+  "first_seen": 1,
+  "trap": 0,
+  "resolved": 1,
+  "steps": 3,
+  "tokens_in": 2664,
+  "tokens_out": 204,
+  "seconds": 15.63,
+  "used_memory": null,
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 0,
+  "match_quality": "low",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F05",
+    "target": "inventory-svc-configmap",
+    "service": "inventory-svc",
+    "obs": "REFUSED by Fixer: target 'inventory-svc-configmap' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "Adjusting MaxRAMPercentage to ensure JVM heap fits within container memory limits",
+    "ok": false
+   },
+   {
+    "action": "get_config",
+    "service": "inventory-svc",
+    "obs": "configmap inventory-jvm-opts: JAVA_OPTS=-Xmx3g ; container limits.memory=2Gi",
+    "reason": "To apply F05, we need the exact configmap name for inventory-svc to adjust the MaxRAMPercentage."
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F05",
+    "target": "inventory-jvm-opts",
+    "service": "inventory-svc",
+    "obs": "fix_heap_limit <configmap> inventory-jvm-opts applied on inventory-svc: alerts cleared, error rate back to baseline",
+    "reason": "Adjusting JVM heap using MaxRAMPercentage to fit within container memory limits",
+    "ok": true
+   }
+  ],
+  "root_cause": "JVM heap exceeds container memory limit",
+  "learned": "mem-0020",
+  "retired": []
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-07",
+  "shift": "B",
+  "night": 3,
+  "cause": "C02",
+  "alert": "login failing: auth returns 5xx, clients report SSL errors",
+  "first_seen": 0,
+  "trap": 0,
+  "resolved": 1,
+  "steps": 1,
+  "tokens_in": 1033,
+  "tokens_out": 69,
+  "seconds": 6.06,
+  "used_memory": "mem-0007",
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 0,
+  "match_quality": "low",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F02",
+    "target": "auth-edge-2026",
+    "service": "edge-lb",
+    "obs": "renew_cert <certificate name> auth-edge-2026 applied on edge-lb: alerts cleared, error rate back to baseline",
+    "reason": "Renewing and reloading the certificate will resolve SSL errors and restore auth functionality.",
+    "ok": true
+   }
+  ],
+  "root_cause": "expired TLS certificate on auth.internal",
+  "learned": null,
+  "retired": []
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-08",
+  "shift": "B",
+  "night": 3,
+  "cause": "C06",
+  "alert": "payments timeouts calling provider, 19% failed",
+  "first_seen": 1,
+  "trap": 0,
+  "resolved": 1,
+  "steps": 3,
+  "tokens_in": 2258,
+  "tokens_out": 183,
+  "seconds": 14.81,
+  "used_memory": null,
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 0,
+  "match_quality": "low",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F07",
+    "target": "card_provider_api_key",
+    "service": "payments",
+    "obs": "REFUSED by Fixer: target 'card_provider_api_key' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "Rotating the API key can resolve auth failures causing timeouts",
+    "ok": false
+   },
+   {
+    "action": "get_logs",
+    "service": "payments",
+    "obs": "provider responded 401 invalid_api_key for key cardco-live-key-2 (x9); retries exhausted -> timeout",
+    "reason": "Check logs for 401 responses to confirm if the issue is related to the provider API key"
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F07",
+    "target": "cardco-live-key-2",
+    "service": "payments",
+    "obs": "rotate_api_key <key name> cardco-live-key-2 applied on payments: alerts cleared, error rate back to baseline",
+    "reason": "Rotate the invalid API key to resolve the 401 error and restore connectivity",
+    "ok": true
+   }
+  ],
+  "root_cause": "Provider API key invalid causing timeouts",
+  "learned": "mem-0026",
+  "retired": []
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-09",
+  "shift": "A",
+  "night": 4,
+  "cause": "C01",
+  "alert": "checkout is throwing 502s, p99 latency 8s",
+  "first_seen": 0,
+  "trap": 0,
+  "resolved": 1,
+  "steps": 1,
+  "tokens_in": 864,
+  "tokens_out": 89,
+  "seconds": 6.81,
+  "used_memory": "mem-0004",
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 0,
+  "match_quality": "low",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F01",
+    "target": "pgb-checkout-rw",
+    "service": "pgbouncer",
+    "obs": "raise_db_pool <pool name> pgb-checkout-rw applied on pgbouncer: alerts cleared, error rate back to baseline",
+    "reason": "Raising the pool size and killing idle-in-transaction sessions will alleviate the pool saturation and reduce latency.",
+    "ok": true
+   }
+  ],
+  "root_cause": "PgBouncer pool saturation causing 502s in checkout-api",
+  "learned": null,
+  "retired": []
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-10",
+  "shift": "A",
+  "night": 4,
+  "cause": "C07",
+  "alert": "search p99 8s, users report slow results",
+  "first_seen": 1,
+  "trap": 0,
+  "resolved": 0,
+  "steps": 12,
+  "tokens_in": 14746,
+  "tokens_out": 634,
+  "seconds": 50.19,
+  "used_memory": null,
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 0,
+  "match_quality": "low",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F08",
+    "target": "index_search_results",
+    "service": "search",
+    "obs": "REFUSED by Fixer: target 'index_search_results' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "Recreating the missing index will improve search performance and reduce latency.",
+    "ok": false
+   },
+   {
+    "action": "get_pool_stats",
+    "service": "search",
+    "obs": "search: pool cl_waiting=0 cl_active=12 maxwait=0s",
+    "reason": ""
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F08",
+    "target": "index_search_results",
+    "service": "search",
+    "obs": "REFUSED by Fixer: target 'index_search_results' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "Recreating the missing index will improve search performance.",
+    "ok": false
+   },
+   {
+    "action": "get_config",
+    "service": "search",
+    "obs": "search: config unchanged in 7 days",
+    "reason": "To determine if a missing index is causing slow search performance."
+   },
+   {
+    "action": "get_queue",
+    "service": "search",
+    "obs": "search: no queues owned or depth=0",
+    "reason": "Check if the search service's queue is causing delays by inspecting the queue status"
+   },
+   {
+    "action": "get_metrics",
+    "service": "search",
+    "obs": "search: symptom confirmed (search p99 8s, users report slow results); own cpu/mem normal; errors are on upstream calls",
+    "reason": "Metrics can reveal latency, CPU, memory, or query patterns causing slow results"
+   },
+   {
+    "action": "get_dependencies",
+    "service": "search",
+    "obs": "search upstreams: search-db DEGRADED (errors/timeouts from here), k8s-nodes healthy",
+    "reason": "To determine if the slowness is due to external services or internal configuration issues"
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F08",
+    "target": "index_search_results",
+    "service": "search",
+    "obs": "REFUSED by Fixer: target 'index_search_results' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "Recreate the missing index to improve search performance.",
+    "ok": false
+   },
+   {
+    "action": "get_pool_stats",
+    "service": "search-db",
+    "obs": "search-db: pool cl_waiting=0 cl_active=10 maxwait=0s",
+    "reason": "checking if the search-db pool is saturated or has connection issues"
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F08",
+    "target": "index_search_results",
+    "service": "search-db",
+    "obs": "REFUSED by Fixer: target 'index_search_results' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "Recreate the missing index to improve search performance.",
+    "ok": false
+   },
+   {
+    "action": "get_metrics",
+    "service": "search-db",
+    "obs": "cpu=20% mem=48% err=0.68% p99=176ms",
+    "reason": "To determine if search-db is experiencing slow queries or missing indexes causing the search slowness."
+   },
+   {
+    "action": "get_metrics",
+    "service": "search",
+    "obs": "(same output as before) search: symptom confirmed (search p99 8s, users report slow results); own cpu/mem normal; errors are on upstream calls -- you already ran get_metrics on search; try a different command or service",
+    "reason": "To confirm if the search service itself is the source of the p99 latency or if it's being affected by upstream services like search-db."
+   }
+  ],
+  "root_cause": "Identify if the search service is experiencing internal bottlenecks or external dependencies",
+  "learned": "mem-0032",
+  "retired": []
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-11",
+  "shift": "B",
+  "night": 5,
+  "cause": "C03",
+  "alert": "push and email notifications are late (~8 min)",
+  "first_seen": 0,
+  "trap": 0,
+  "resolved": 1,
+  "steps": 1,
+  "tokens_in": 1001,
+  "tokens_out": 64,
+  "seconds": 6.03,
+  "used_memory": "mem-0011",
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 0,
+  "match_quality": "high",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F03",
+    "target": "notify-sender-v2",
+    "service": "notify-queue",
+    "obs": "restart_consumers <consumer group> notify-sender-v2 applied on notify-queue: alerts cleared, error rate back to baseline",
+    "reason": "Restart crashed consumers and scale to drain to resolve delayed notifications",
+    "ok": true
+   }
+  ],
+  "root_cause": "Queue consumers are crashed and not running",
+  "learned": null,
+  "retired": []
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-12",
+  "shift": "B",
+  "night": 5,
+  "cause": "C05",
+  "alert": "inventory-svc OOMKilled, 6 restarts in 10 min",
+  "first_seen": 0,
+  "trap": 0,
+  "resolved": 1,
+  "steps": 1,
+  "tokens_in": 984,
+  "tokens_out": 82,
+  "seconds": 5.97,
+  "used_memory": "mem-0020",
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 0,
+  "match_quality": "low",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F05",
+    "target": "inventory-jvm-opts",
+    "service": "inventory-svc",
+    "obs": "fix_heap_limit <configmap> inventory-jvm-opts applied on inventory-svc: alerts cleared, error rate back to baseline",
+    "reason": "Adjusting the JVM heap limit to fit within the container's memory constraints to prevent OOMKilled errors.",
+    "ok": true
+   }
+  ],
+  "root_cause": "JVM heap exceeds container memory limit",
+  "learned": null,
+  "retired": []
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-13",
+  "shift": "A",
+  "night": 6,
+  "cause": "C08",
+  "alert": "clients get HTTP 429 from gateway",
+  "first_seen": 1,
+  "trap": 0,
+  "resolved": 0,
+  "steps": 12,
+  "tokens_in": 15875,
+  "tokens_out": 617,
+  "seconds": 49.59,
+  "used_memory": null,
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 0,
+  "match_quality": "low",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F15",
+    "target": "gateway",
+    "service": "gateway",
+    "obs": "REFUSED by Fixer: target 'gateway' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "Raising client timeouts can help alleviate 429 errors caused by request throttling or temporary service unavailability.",
+    "ok": false
+   },
+   {
+    "action": "get_certs",
+    "service": "gateway",
+    "obs": "gateway: certificates valid for 286 more days",
+    "reason": ""
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F15",
+    "target": "gateway",
+    "service": "gateway",
+    "obs": "REFUSED by Fixer: target 'gateway' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "Raise client timeouts to prevent 429 errors from the gateway",
+    "ok": false
+   },
+   {
+    "action": "get_metrics",
+    "service": "gateway",
+    "obs": "rps=3900 throttled=9% by edge-ratelimit-rps cpu=22%",
+    "reason": "Check metrics to determine if the gateway is rate-limiting or experiencing upstream failures"
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F15",
+    "target": "gateway",
+    "service": "gateway",
+    "obs": "REFUSED by Fixer: target 'gateway' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "raise client timeouts to prevent 429 errors from the gateway",
+    "ok": false
+   },
+   {
+    "action": "get_metrics",
+    "service": "gateway",
+    "obs": "(same output as before) rps=3900 throttled=9% by edge-ratelimit-rps cpu=22% -- you already ran get_metrics on gateway; try a different command or service",
+    "reason": "Need to confirm if rate limit is the cause of 429 errors and identify the exact rate limit config key"
+   },
+   {
+    "action": "get_metrics",
+    "service": "edge-lb",
+    "obs": "cpu=21% mem=59% err=0.10% p99=123ms",
+    "reason": ""
+   },
+   {
+    "action": "get_metrics",
+    "service": "gateway",
+    "obs": "(same output as before) rps=3900 throttled=9% by edge-ratelimit-rps cpu=22% -- you already ran get_metrics on gateway; try a different command or service",
+    "reason": "Need to confirm if the rate limit is the cause of the 429 errors and identify the exact rate limit configuration or threshold."
+   },
+   {
+    "action": "get_queue",
+    "service": "edge-lb",
+    "obs": "edge-lb: no queues owned or depth=0",
+    "reason": "Check if queue consumers are draining or if there is a backlog causing throttling"
+   },
+   {
+    "action": "get_metrics",
+    "service": "edge-ratelimit",
+    "obs": "cpu=20% mem=40% err=0.18% p99=160ms",
+    "reason": "check if edge-ratelimit is triggering 429 responses"
+   },
+   {
+    "action": "get_metrics",
+    "service": "edge-ratelimit",
+    "obs": "(same output as before) cpu=20% mem=40% err=0.18% p99=160ms -- you already ran get_metrics on edge-ratelimit; try a different command or service",
+    "reason": "Confirm rate-limiting metrics and thresholds on edge-ratelimit service"
+   },
+   {
+    "action": "get_metrics",
+    "service": "gateway",
+    "obs": "(same output as before) rps=3900 throttled=9% by edge-ratelimit-rps cpu=22% -- you already ran get_metrics on gateway; try a different command or service",
+    "reason": "Confirming rate limit settings and identifying if the rate limit is the cause of 429 errors"
+   }
+  ],
+  "root_cause": "gateway is throttling due to rate limit",
+  "learned": "mem-0049",
+  "retired": []
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-14",
+  "shift": "A",
+  "night": 6,
+  "cause": "C04",
+  "alert": "spike of failed order jobs (6%) after deploy",
+  "first_seen": 0,
+  "trap": 0,
+  "resolved": 1,
+  "steps": 10,
+  "tokens_in": 12372,
+  "tokens_out": 657,
+  "seconds": 49.07,
+  "used_memory": "mem-0017",
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 5,
+  "match_quality": "mid",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F04",
+    "target": "v2.3.0",
+    "service": "orders-worker",
+    "obs": "rollback_deploy <version to roll back TO> v2.3.0 applied on orders-worker: symptoms persist (spike of failed order jobs (6%) after deploy) The remembered fix did not work here: the ledger retires it and the Fixer will refuse F04 v2.3.0 for the rest of this page.",
+    "reason": "Roll back to a stable version to resolve the spike in failed order jobs",
+    "ok": false
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F04",
+    "target": "v2.3.0",
+    "service": "orders-worker",
+    "obs": "REFUSED by Fixer: the fix ledger retired F04 v2.3.0 for this alert (F04 v2.3.0 failed earlier in this page). The cause is different this time. Find what is different with a command you have not run yet (get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue).",
+    "reason": "Roll back to a previous version to resolve the deploy-related issue causing failed order jobs",
+    "ok": false
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F04",
+    "target": "v2.3.0",
+    "service": "orders-worker",
+    "obs": "REFUSED by Fixer: the fix ledger retired F04 v2.3.0 for this alert (F04 v2.3.0 failed earlier in this page). The cause is different this time. Find what is different with a command you have not run yet (get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue).",
+    "reason": "Roll back to a previous version to resolve the deploy-related issue",
+    "ok": false
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F04",
+    "target": "v2.3.0",
+    "service": "orders-worker",
+    "obs": "REFUSED by Fixer: the fix ledger retired F04 v2.3.0 for this alert (F04 v2.3.0 failed earlier in this page). The cause is different this time. Find what is different with a command you have not run yet (get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue).",
+    "reason": "Roll back to a previous version to resolve the issue",
+    "ok": false
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F04",
+    "target": "v2.3.0",
+    "service": "orders-worker",
+    "obs": "REFUSED by Fixer: the fix ledger retired F04 v2.3.0 for this alert (F04 v2.3.0 failed earlier in this page). The cause is different this time. Find what is different with a command you have not run yet (get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue).",
+    "reason": "Roll back to the previous version to resolve the failed order jobs spike.",
+    "ok": false
+   },
+   {
+    "action": "get_logs",
+    "service": "orders-worker",
+    "obs": "NullPointerException at OrderMapper.toDto (release v2.9.0) x5",
+    "reason": "Check logs to identify specific error messages or patterns that may indicate the root cause of the failed order jobs."
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F04",
+    "target": "v2.9.0",
+    "service": "orders-worker",
+    "obs": "rollback_deploy <version to roll back TO> v2.9.0 applied on orders-worker: symptoms persist (spike of failed order jobs (6%) after deploy) The remembered fix did not work here: the ledger retires it and the Fixer will refuse F04 v2.9.0 for the rest of this page.",
+    "reason": "Rolling back to a stable version to resolve the NullPointerException causing failed order jobs",
+    "ok": false
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F04",
+    "target": "v2.9.0",
+    "service": "orders-worker",
+    "obs": "REFUSED by Fixer: the fix ledger retired F04 v2.9.0 for this alert (F04 v2.9.0 failed earlier in this page). The cause is different this time. Find what is different with a command you have not run yet (get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue).",
+    "reason": "Roll back to a stable version to resolve the spike of failed order jobs",
+    "ok": false
+   },
+   {
+    "action": "get_deploys",
+    "service": "orders-worker",
+    "obs": "orders-worker v2.9.0 deployed 9 min ago; previous release v2.8.0 was healthy",
+    "reason": "Check deploy history to identify potential changes that could cause the failed order jobs"
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F04",
+    "target": "v2.8.0",
+    "service": "orders-worker",
+    "obs": "rollback_deploy <version to roll back TO> v2.8.0 applied on orders-worker: alerts cleared, error rate back to baseline",
+    "reason": "Roll back to the previous healthy version v2.8.0 to resolve the spike of failed order jobs",
+    "ok": true
+   }
+  ],
+  "root_cause": "Recent deploy caused errors in orders-worker due to a version mismatch or deployment issue",
+  "learned": "mem-0052",
+  "retired": [
+   "mem-0017"
+  ]
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-15",
+  "shift": "B",
+  "night": 7,
+  "cause": "C09",
+  "alert": "orders-worker failing to persist job state",
+  "first_seen": 1,
+  "trap": 0,
+  "resolved": 1,
+  "steps": 5,
+  "tokens_in": 5971,
+  "tokens_out": 332,
+  "seconds": 26.9,
+  "used_memory": "mem-0017",
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 1,
+  "match_quality": "low",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F04",
+    "target": "v2.3.0",
+    "service": "orders-worker",
+    "obs": "rollback_deploy <version to roll back TO> v2.3.0 applied on orders-worker: symptoms persist (orders-worker failing to persist job state) The remembered fix did not work here: the ledger retires it and the Fixer will refuse F04 v2.3.0 for the rest of this page.",
+    "reason": "Rolling back to a previous version can resolve issues introduced by the latest release.",
+    "ok": false
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F09",
+    "target": "job-state-persistence",
+    "service": "orders-worker",
+    "obs": "REFUSED by Fixer: target 'job-state-persistence' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "disabling the flag should resolve the issue with orders-worker failing to persist job state",
+    "ok": false
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F04",
+    "target": "v2.3.0",
+    "service": "orders-worker",
+    "obs": "REFUSED by Fixer: the fix ledger retired F04 v2.3.0 for this alert (F04 v2.3.0 failed earlier in this page). The cause is different this time. Find what is different with a command you have not run yet (get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue).",
+    "reason": "Roll back to a previous version to resolve the issue",
+    "ok": false
+   },
+   {
+    "action": "get_logs",
+    "service": "orders-worker",
+    "obs": "ENOSPC: no space left on device /var/log/orders (x9)",
+    "reason": "Logs can reveal specific errors related to job state persistence in orders-worker"
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F11",
+    "target": "/var/log/orders",
+    "service": "orders-worker",
+    "obs": "free_disk <path> /var/log/orders applied on orders-worker: alerts cleared, error rate back to baseline",
+    "reason": "F11 will rotate and compress logs under /var/log/orders to free up disk space and resolve the ENOSPC error.",
+    "ok": true
+   }
+  ],
+  "root_cause": "Disk space exhaustion due to unrotated logs",
+  "learned": "mem-0056",
+  "retired": [
+   "mem-0017"
+  ]
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-16",
+  "shift": "B",
+  "night": 7,
+  "cause": "C06",
+  "alert": "payments provider errors and timeouts",
+  "first_seen": 0,
+  "trap": 0,
+  "resolved": 1,
+  "steps": 1,
+  "tokens_in": 1059,
+  "tokens_out": 69,
+  "seconds": 6.01,
+  "used_memory": "mem-0026",
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 0,
+  "match_quality": "high",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F07",
+    "target": "cardco-live-key-2",
+    "service": "payments",
+    "obs": "rotate_api_key <key name> cardco-live-key-2 applied on payments: alerts cleared, error rate back to baseline",
+    "reason": "Rotate the invalid API key to resolve the 401 errors and timeouts in payments.",
+    "ok": true
+   }
+  ],
+  "root_cause": "Invalid provider API key causing timeouts",
+  "learned": null,
+  "retired": []
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-17",
+  "shift": "A",
+  "night": 8,
+  "cause": "C10",
+  "alert": "no report emails today, reports-cron silent",
+  "first_seen": 1,
+  "trap": 0,
+  "resolved": 0,
+  "steps": 12,
+  "tokens_in": 15468,
+  "tokens_out": 753,
+  "seconds": 58.1,
+  "used_memory": null,
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 0,
+  "match_quality": "low",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F04",
+    "target": "reports-cron-1.2.3",
+    "service": "reports-cron",
+    "obs": "REFUSED by Fixer: target 'reports-cron-1.2.3' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "The reports-cron service may have failed due to a recent deploy issue, rolling back to a stable version will resolve the issue.",
+    "ok": false
+   },
+   {
+    "action": "get_deploys",
+    "service": "reports-cron",
+    "obs": "reports-cron: last deploy 7 days ago, healthy since",
+    "reason": "To determine if a recent deploy caused the reports-cron to become silent, we need to check its deploy history."
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F04",
+    "target": "reports-cron-1.2.3",
+    "service": "reports-cron",
+    "obs": "REFUSED by Fixer: target 'reports-cron-1.2.3' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "Rolling back to a previous deploy to resolve potential deployment issues",
+    "ok": false
+   },
+   {
+    "action": "get_certs",
+    "service": "reports-cron",
+    "obs": "reports-cron: certificates valid for 212 more days",
+    "reason": "Check if the TLS certificate for reports-cron is expired or invalid, which could be causing the service to be silent."
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F04",
+    "target": "reports-cron-1.2.3",
+    "service": "reports-cron",
+    "obs": "REFUSED by Fixer: target 'reports-cron-1.2.3' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "rolling back to a previous deploy to resolve potential deployment issues",
+    "ok": false
+   },
+   {
+    "action": "get_logs",
+    "service": "reports-cron",
+    "obs": "reports-cron: symptom confirmed (no report emails today, reports-cron silent); own cpu/mem normal; errors are on upstream calls",
+    "reason": "logs may indicate why the service is not generating reports or is unresponsive"
+   },
+   {
+    "action": "get_dependencies",
+    "service": "reports-cron",
+    "obs": "reports-cron upstreams: lock-store DEGRADED (errors/timeouts from here), postgres healthy",
+    "reason": "Identify if reports-cron is failing due to a dependency issue"
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F12",
+    "target": "lock-key-reports",
+    "service": "lock-store",
+    "obs": "REFUSED by Fixer: target 'lock-key-reports' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "releasing the stale lock should allow reports-cron to resume normal operation",
+    "ok": false
+   },
+   {
+    "action": "get_queue",
+    "service": "reports-cron",
+    "obs": "reports-cron: no queues owned or depth=0",
+    "reason": "Check if the queue is blocked or if there are unprocessed messages that could be causing the silence"
+   },
+   {
+    "action": "get_metrics",
+    "service": "reports-cron",
+    "obs": "reports-cron: symptom confirmed (no report emails today, reports-cron silent); own cpu/mem normal; errors are on upstream calls",
+    "reason": "Check if there are any metrics indicating service unavailability or high latency"
+   },
+   {
+    "action": "get_deploys",
+    "service": "lock-store",
+    "obs": "lock-store: last deploy 9 days ago, healthy since",
+    "reason": "Identify the deploy version of lock-store to determine if a rollback is needed"
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F12",
+    "target": "lock-key-reports",
+    "service": "lock-store",
+    "obs": "REFUSED by Fixer: target 'lock-key-reports' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "releasing the stale lock should allow reports-cron to resume its operations",
+    "ok": false
+   }
+  ],
+  "root_cause": "stale leader lock preventing reports-cron from proceeding",
+  "learned": "mem-0061",
+  "retired": []
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-18",
+  "shift": "A",
+  "night": 8,
+  "cause": "C02",
+  "alert": "auth 5xx spike, TLS handshake failures from clients",
+  "first_seen": 0,
+  "trap": 0,
+  "resolved": 1,
+  "steps": 1,
+  "tokens_in": 1047,
+  "tokens_out": 81,
+  "seconds": 8.46,
+  "used_memory": "mem-0007",
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 0,
+  "match_quality": "high",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F02",
+    "target": "auth-edge-2026",
+    "service": "edge-lb",
+    "obs": "renew_cert <certificate name> auth-edge-2026 applied on edge-lb: alerts cleared, error rate back to baseline",
+    "reason": "Renewing and reloading the certificate will resolve the TLS handshake failures and 5xx errors in auth.",
+    "ok": true
+   }
+  ],
+  "root_cause": "Expired TLS certificate on auth.internal",
+  "learned": null,
+  "retired": []
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-19",
+  "shift": "B",
+  "night": 9,
+  "cause": "C07",
+  "alert": "search is slow: p99 5s",
+  "first_seen": 0,
+  "trap": 0,
+  "resolved": 1,
+  "steps": 1,
+  "tokens_in": 1000,
+  "tokens_out": 72,
+  "seconds": 7.7,
+  "used_memory": "mem-0032",
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 0,
+  "match_quality": "mid",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F08",
+    "target": "idx_products_sku",
+    "service": "search-db",
+    "obs": "add_index <index name> idx_products_sku applied on search-db: alerts cleared, error rate back to baseline",
+    "reason": "Recreate the missing index to improve query performance on the search-db",
+    "ok": true
+   }
+  ],
+  "root_cause": "Missing index causing slow query on search-db",
+  "learned": null,
+  "retired": []
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-20",
+  "shift": "B",
+  "night": 9,
+  "cause": "C11",
+  "alert": "checkout errors for about 24% of users",
+  "first_seen": 1,
+  "trap": 0,
+  "resolved": 1,
+  "steps": 7,
+  "tokens_in": 9890,
+  "tokens_out": 526,
+  "seconds": 38.45,
+  "used_memory": "mem-0004",
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 2,
+  "match_quality": "low",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F01",
+    "target": "pgb-checkout-rw",
+    "service": "pgbouncer",
+    "obs": "raise_db_pool <pool name> pgb-checkout-rw applied on pgbouncer: symptoms persist (checkout errors for about 24% of users) The remembered fix did not work here: the ledger retires it and the Fixer will refuse F01 pgb-checkout-rw for the rest of this page.",
+    "reason": "Raise the connection pool size and kill idle-in-transaction sessions to alleviate the pool saturation issue.",
+    "ok": false
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F14",
+    "target": "checkout-api",
+    "service": "checkout-api",
+    "obs": "REFUSED by Fixer: target 'checkout-api' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "Scaling up checkout-api can help alleviate pressure on the PgBouncer pool and reduce 502 errors.",
+    "ok": false
+   },
+   {
+    "action": "get_pool_stats",
+    "service": "pgbouncer",
+    "obs": "pgbouncer: pool cl_waiting=0 cl_active=7 maxwait=0s",
+    "reason": "Need to confirm the current state of the pool to determine the next step"
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F01",
+    "target": "pgb-checkout-rw",
+    "service": "pgbouncer",
+    "obs": "REFUSED by Fixer: the fix ledger retired F01 pgb-checkout-rw for this alert (F01 pgb-checkout-rw failed earlier in this page). The cause is different this time. Find what is different with a command you have not run yet (get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue).",
+    "reason": "Raise the connection pool size and kill idle-in-transaction sessions to alleviate the pool saturation issue.",
+    "ok": false
+   },
+   {
+    "action": "get_logs",
+    "service": "checkout-api",
+    "obs": "PricingV2Exception: missing tax region (only for new_pricing_engine=on cohort)",
+    "reason": "Logs can reveal if the issue is related to PgBouncer, backend services, or other internal errors"
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F01",
+    "target": "pgb-checkout-rw",
+    "service": "pgbouncer",
+    "obs": "REFUSED by Fixer: the fix ledger retired F01 pgb-checkout-rw for this alert (F01 pgb-checkout-rw failed earlier in this page). The cause is different this time. Find what is different with a command you have not run yet (get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue).",
+    "reason": "The fix was previously applied but failed, and the cause is different this time. We need to re-apply the fix to address the current issue.",
+    "ok": false
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F09",
+    "target": "new_pricing_engine",
+    "service": "checkout-api",
+    "obs": "disable_flag <flag name> new_pricing_engine applied on checkout-api: alerts cleared, error rate back to baseline",
+    "reason": "Disabling the new pricing engine flag will resolve the missing tax region error causing checkout failures",
+    "ok": true
+   }
+  ],
+  "root_cause": "Missing tax region in new pricing engine cohort",
+  "learned": "mem-0068",
+  "retired": [
+   "mem-0004"
+  ]
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-21",
+  "shift": "A",
+  "night": 10,
+  "cause": "C08",
+  "alert": "gateway throttling 17% of traffic",
+  "first_seen": 0,
+  "trap": 0,
+  "resolved": 1,
+  "steps": 1,
+  "tokens_in": 784,
+  "tokens_out": 74,
+  "seconds": 6.64,
+  "used_memory": "mem-0049",
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 0,
+  "match_quality": "low",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F10",
+    "target": "edge-ratelimit-rps",
+    "service": "gateway",
+    "obs": "tune_rate_limit <config key> edge-ratelimit-rps applied on gateway: alerts cleared, error rate back to baseline",
+    "reason": "Restoring the rate-limit setting to its documented value will resolve the gateway throttling issue.",
+    "ok": true
+   }
+  ],
+  "root_cause": "Incorrect rate-limit configuration",
+  "learned": null,
+  "retired": []
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-22",
+  "shift": "A",
+  "night": 10,
+  "cause": "C12",
+  "alert": "gateway intermittent 503s",
+  "first_seen": 1,
+  "trap": 0,
+  "resolved": 1,
+  "steps": 12,
+  "tokens_in": 13347,
+  "tokens_out": 768,
+  "seconds": 60.97,
+  "used_memory": "mem-0049",
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 0,
+  "match_quality": "low",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F10",
+    "target": "edge-ratelimit-rps",
+    "service": "gateway",
+    "obs": "tune_rate_limit <config key> edge-ratelimit-rps applied on gateway: symptoms persist (gateway intermittent 503s) The remembered fix did not work here: the ledger retires it and the Fixer will refuse F10 edge-ratelimit-rps for the rest of this page.",
+    "reason": "Restoring the rate-limit setting to its documented value should resolve the 503 errors.",
+    "ok": false
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F05",
+    "target": "jvm.heap.limit",
+    "service": "gateway",
+    "obs": "REFUSED by Fixer: target 'jvm.heap.limit' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "Adjusting JVM heap limit to prevent out-of-memory errors that could lead to 503s",
+    "ok": false
+   },
+   {
+    "action": "get_config",
+    "service": "gateway",
+    "obs": "gateway: config unchanged in 4 days",
+    "reason": "To identify any other misconfigured parameters that may be causing the 503 errors"
+   },
+   {
+    "action": "get_config",
+    "service": "gateway",
+    "obs": "(same output as before) gateway: config unchanged in 4 days -- you already ran get_config on gateway; try a different command or service",
+    "reason": "Need to verify current config for any other rate-limit or timeout settings that may be causing 503s"
+   },
+   {
+    "action": "get_logs",
+    "service": "gateway",
+    "obs": "gateway: symptom confirmed (gateway intermittent 503s); own cpu/mem normal; errors are on upstream calls",
+    "reason": "Check logs for potential errors or patterns causing the 503s"
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F03",
+    "target": "notify-queue",
+    "service": "gateway",
+    "obs": "REFUSED by Fixer: target 'notify-queue' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "restart crashed queue consumers and scale to drain to resolve intermittent 503s from upstream failures",
+    "ok": false
+   },
+   {
+    "action": "get_dependencies",
+    "service": "gateway",
+    "obs": "gateway upstreams: k8s-nodes DEGRADED (errors/timeouts from here), edge-lb healthy, auth healthy",
+    "reason": "Check if any dependent services are failing or causing gateway issues"
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F16",
+    "target": "k8s-nodes",
+    "service": "k8s-nodes",
+    "obs": "REFUSED by Fixer: target 'k8s-nodes' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "scale up k8s-nodes to handle increased load and resolve upstream timeouts",
+    "ok": false
+   },
+   {
+    "action": "get_metrics",
+    "service": "gateway",
+    "obs": "gateway: symptom confirmed (gateway intermittent 503s); own cpu/mem normal; errors are on upstream calls",
+    "reason": "Metrics can reveal if the gateway is being throttled or if upstream services are causing delays"
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F16",
+    "target": "k8s-nodes",
+    "service": "k8s-nodes",
+    "obs": "REFUSED by Fixer: target 'k8s-nodes' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "scale up k8s-nodes to handle increased load and resolve upstream timeouts",
+    "ok": false
+   },
+   {
+    "action": "get_metrics",
+    "service": "k8s-nodes",
+    "obs": "503=31% all from node-9, node-9 disk latency 500ms",
+    "reason": "validate if k8s-nodes is the source of the 503s by checking its metrics"
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F16",
+    "target": "node-9",
+    "service": "k8s-nodes",
+    "obs": "drain_node <node name> node-9 applied on k8s-nodes: alerts cleared, error rate back to baseline",
+    "reason": "scale up k8s-nodes to handle disk latency on node-9",
+    "ok": true
+   }
+  ],
+  "root_cause": "node-9 disk latency causing 503s",
+  "learned": "mem-0082",
+  "retired": [
+   "mem-0049"
+  ]
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-23",
+  "shift": "B",
+  "night": 11,
+  "cause": "C03",
+  "alert": "notifications delayed by 6 minutes",
+  "first_seen": 0,
+  "trap": 0,
+  "resolved": 1,
+  "steps": 1,
+  "tokens_in": 844,
+  "tokens_out": 70,
+  "seconds": 5.97,
+  "used_memory": "mem-0011",
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 0,
+  "match_quality": "mid",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F03",
+    "target": "notify-sender-v2",
+    "service": "notify-queue",
+    "obs": "restart_consumers <consumer group> notify-sender-v2 applied on notify-queue: alerts cleared, error rate back to baseline",
+    "reason": "Restart crashed consumers and scale to drain the queue",
+    "ok": true
+   }
+  ],
+  "root_cause": "Queue consumers are crashed and not running",
+  "learned": null,
+  "retired": []
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-24",
+  "shift": "B",
+  "night": 11,
+  "cause": "C01b",
+  "alert": "checkout is throwing 502s, p99 latency 2s",
+  "first_seen": 1,
+  "trap": 1,
+  "resolved": 0,
+  "steps": 12,
+  "tokens_in": 20837,
+  "tokens_out": 839,
+  "seconds": 68.76,
+  "used_memory": "mem-0004",
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 4,
+  "match_quality": "high",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F01",
+    "target": "pgb-checkout-rw",
+    "service": "pgbouncer",
+    "obs": "raise_db_pool <pool name> pgb-checkout-rw applied on pgbouncer: symptoms persist (checkout is throwing 502s, p99 latency 2s) The remembered fix did not work here: the ledger retires it and the Fixer will refuse F01 pgb-checkout-rw for the rest of this page.",
+    "reason": "Raise the connection pool size and kill idle-in-transaction sessions to alleviate the pool saturation.",
+    "ok": false
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F09",
+    "target": "new_pricing_engine",
+    "service": "checkout-api",
+    "obs": "disable_flag <flag name> new_pricing_engine applied on checkout-api: symptoms persist (checkout is throwing 502s, p99 latency 2s) The remembered fix did not work here: the ledger retires it and the Fixer will refuse F09 new_pricing_engine for the rest of this page.",
+    "reason": "Disable the new pricing engine flag to resolve the missing tax region issue causing checkout errors and latency.",
+    "ok": false
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F01",
+    "target": "pgb-checkout-rw",
+    "service": "pgbouncer",
+    "obs": "REFUSED by Fixer: the fix ledger retired F01 pgb-checkout-rw for this alert (F01 pgb-checkout-rw failed earlier in this page). The cause is different this time. Find what is different with a command you have not run yet (get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue).",
+    "reason": "Raise the connection pool size and kill idle-in-transaction sessions to alleviate pool saturation",
+    "ok": false
+   },
+   {
+    "action": "get_pool_stats",
+    "service": "pgbouncer",
+    "obs": "pgbouncer: pool cl_waiting=0 cl_active=3 maxwait=0s",
+    "reason": "To determine the exact cause of the 502 errors and pool saturation, we need to check the current pool stats for pgbouncer."
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F01",
+    "target": "pgb-checkout-rw",
+    "service": "pgbouncer",
+    "obs": "REFUSED by Fixer: the fix ledger retired F01 pgb-checkout-rw for this alert (F01 pgb-checkout-rw failed earlier in this page). The cause is different this time. Find what is different with a command you have not run yet (get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue).",
+    "reason": "Raise the connection pool size and kill idle-in-transaction sessions to alleviate the pool saturation.",
+    "ok": false
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F05",
+    "target": "checkout-api-configmap",
+    "service": "checkout-api",
+    "obs": "REFUSED by Fixer: target 'checkout-api-configmap' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "Adjusting JVM heap limit to fit container resources",
+    "ok": false
+   },
+   {
+    "action": "get_config",
+    "service": "checkout-api",
+    "obs": "checkout-api: config unchanged in 15 days",
+    "reason": "Check if JVM heap settings are causing high latency by inspecting the configmap"
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F09",
+    "target": "new_pricing_engine",
+    "service": "checkout-api",
+    "obs": "REFUSED by Fixer: the fix ledger retired F09 new_pricing_engine for this alert (F09 new_pricing_engine failed earlier in this page). The cause is different this time. Find what is different with a command you have not run yet (get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue).",
+    "reason": "Disabling the new pricing engine flag to resolve the root cause of checkout errors and 502s",
+    "ok": false
+   },
+   {
+    "action": "get_logs",
+    "service": "checkout-api",
+    "obs": "checkout-api: symptom confirmed (checkout is throwing 502s, p99 latency 2s); own cpu/mem normal; errors are on upstream calls",
+    "reason": "Logs may reveal errors or timeouts in communication with dependent services or databases"
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F13",
+    "target": "checkout-api",
+    "service": "checkout-api",
+    "obs": "REFUSED by Fixer: target 'checkout-api' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "Restarting all pods of checkout-api to resolve potential upstream connection issues and reset any transient state causing the 502 errors",
+    "ok": false
+   },
+   {
+    "action": "get_dependencies",
+    "service": "checkout-api",
+    "obs": "checkout-api upstreams: pgbouncer healthy, postgres DEGRADED (errors/timeouts from here), payments healthy, inventory-svc healthy",
+    "reason": "To determine if the issue is with an external service or internal dependency"
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F01",
+    "target": "pgb-checkout-rw",
+    "service": "postgres",
+    "obs": "REFUSED by Fixer: the fix ledger retired F01 pgb-checkout-rw for this alert (F01 pgb-checkout-rw failed earlier in this page). The cause is different this time. Find what is different with a command you have not run yet (get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue).",
+    "reason": "Raise the connection pool size and kill idle-in-transaction sessions to resolve the degraded state of Postgres",
+    "ok": false
+   }
+  ],
+  "root_cause": "Postgres is degraded and causing 502s in checkout-api",
+  "learned": "mem-0087",
+  "retired": [
+   "mem-0004",
+   "mem-0068"
+  ]
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-25",
+  "shift": "A",
+  "night": 12,
+  "cause": "C09",
+  "alert": "orders-worker write errors, jobs stuck",
+  "first_seen": 0,
+  "trap": 0,
+  "resolved": 1,
+  "steps": 8,
+  "tokens_in": 11464,
+  "tokens_out": 528,
+  "seconds": 44.63,
+  "used_memory": "mem-0017",
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 0,
+  "match_quality": "high",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F04",
+    "target": "v2.8.0",
+    "service": "orders-worker",
+    "obs": "rollback_deploy <version to roll back TO> v2.8.0 applied on orders-worker: symptoms persist (orders-worker write errors, jobs stuck) The remembered fix did not work here: the ledger retires it and the Fixer will refuse F04 v2.8.0 for the rest of this page.",
+    "reason": "Rolling back to a previous version that resolved the issue in a similar scenario",
+    "ok": false
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F04",
+    "target": "v2.7.0",
+    "service": "orders-worker",
+    "obs": "REFUSED by Fixer: target 'v2.7.0' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "Roll back to a previous stable version to resolve the write errors and stuck jobs",
+    "ok": false
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F04",
+    "target": "v2.7.0",
+    "service": "orders-worker",
+    "obs": "REFUSED by Fixer: target 'v2.7.0' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "Roll back to a previous version to resolve the deployment issue causing write errors and stuck jobs",
+    "ok": false
+   },
+   {
+    "action": "get_deploys",
+    "service": "orders-worker",
+    "obs": "orders-worker: last deploy 6 days ago, healthy since",
+    "reason": "To determine the correct version to roll back to, we need to check the deploy history of the orders-worker service."
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F04",
+    "target": "v2.6.0",
+    "service": "orders-worker",
+    "obs": "REFUSED by Fixer: target 'v2.6.0' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "Roll back to a previous version that resolved the issue in prior incidents",
+    "ok": false
+   },
+   {
+    "action": "get_deploys",
+    "service": "orders-worker",
+    "obs": "(same output as before) orders-worker: last deploy 6 days ago, healthy since -- you already ran get_deploys on orders-worker; try a different command or service",
+    "reason": "Need exact version to roll back to based on deploy logs"
+   },
+   {
+    "action": "get_logs",
+    "service": "orders-worker",
+    "obs": "ENOSPC: no space left on device /var/log/orders (x15)",
+    "reason": "Check logs to identify specific error messages or patterns that may indicate the root cause of the write errors and job failures"
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F11",
+    "target": "/var/log/orders",
+    "service": "orders-worker",
+    "obs": "free_disk <path> /var/log/orders applied on orders-worker: alerts cleared, error rate back to baseline",
+    "reason": "Free up disk space by rotating and compressing logs under /var/log/orders",
+    "ok": true
+   }
+  ],
+  "root_cause": "Disk full due to unrotated logs",
+  "learned": "mem-0090",
+  "retired": [
+   "mem-0052"
+  ]
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-26",
+  "shift": "A",
+  "night": 12,
+  "cause": "C05",
+  "alert": "inventory-svc OOMKilled, 9 restarts in 10 min",
+  "first_seen": 0,
+  "trap": 0,
+  "resolved": 1,
+  "steps": 1,
+  "tokens_in": 996,
+  "tokens_out": 79,
+  "seconds": 8.31,
+  "used_memory": "mem-0020",
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 0,
+  "match_quality": "high",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F05",
+    "target": "inventory-jvm-opts",
+    "service": "inventory-svc",
+    "obs": "fix_heap_limit <configmap> inventory-jvm-opts applied on inventory-svc: alerts cleared, error rate back to baseline",
+    "reason": "Adjusting JVM heap settings to fit within container memory limits to prevent OOMKilled errors.",
+    "ok": true
+   }
+  ],
+  "root_cause": "JVM heap exceeds container memory limit",
+  "learned": null,
+  "retired": []
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-27",
+  "shift": "B",
+  "night": 13,
+  "cause": "C10",
+  "alert": "reports-cron missed its 02:00 run",
+  "first_seen": 0,
+  "trap": 0,
+  "resolved": 1,
+  "steps": 1,
+  "tokens_in": 733,
+  "tokens_out": 69,
+  "seconds": 5.1,
+  "used_memory": "mem-0061",
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 0,
+  "match_quality": "low",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F12",
+    "target": "reports/leader",
+    "service": "lock-store",
+    "obs": "release_lock <lock key> reports/leader applied on lock-store: alerts cleared, error rate back to baseline",
+    "reason": "release the stale leader lock to allow reports-cron to proceed with its scheduled run",
+    "ok": true
+   }
+  ],
+  "root_cause": "stale leader lock preventing reports-cron from running",
+  "learned": null,
+  "retired": []
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-28",
+  "shift": "B",
+  "night": 13,
+  "cause": "C11",
+  "alert": "checkout errors for about 6% of users",
+  "first_seen": 0,
+  "trap": 0,
+  "resolved": 1,
+  "steps": 1,
+  "tokens_in": 1340,
+  "tokens_out": 73,
+  "seconds": 6.95,
+  "used_memory": "mem-0068",
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 0,
+  "match_quality": "high",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F09",
+    "target": "new_pricing_engine",
+    "service": "checkout-api",
+    "obs": "disable_flag <flag name> new_pricing_engine applied on checkout-api: alerts cleared, error rate back to baseline",
+    "reason": "This is the verified root cause for the checkout errors, and the fix is confirmed to resolve the issue.",
+    "ok": true
+   }
+  ],
+  "root_cause": "Missing tax region in new pricing engine cohort",
+  "learned": null,
+  "retired": []
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-29",
+  "shift": "A",
+  "night": 14,
+  "cause": "C01b",
+  "alert": "checkout-api 502 rate 14% and p99 3s",
+  "first_seen": 0,
+  "trap": 0,
+  "resolved": 1,
+  "steps": 3,
+  "tokens_in": 3837,
+  "tokens_out": 224,
+  "seconds": 18.33,
+  "used_memory": "mem-0004",
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 1,
+  "match_quality": "mid",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F01",
+    "target": "pgb-checkout-rw",
+    "service": "pgbouncer",
+    "obs": "raise_db_pool <pool name> pgb-checkout-rw applied on pgbouncer: symptoms persist (checkout-api 502 rate 14% and p99 3s) The remembered fix did not work here: the ledger retires it and the Fixer will refuse F01 pgb-checkout-rw for the rest of this page.",
+    "reason": "Raise the connection pool size and kill idle-in-transaction sessions to alleviate pool saturation.",
+    "ok": false
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F01",
+    "target": "pgb-checkout-rw",
+    "service": "checkout-api",
+    "obs": "REFUSED by Fixer: the fix ledger retired F01 pgb-checkout-rw for this alert (F01 pgb-checkout-rw failed earlier in this page). The cause is different this time. Find what is different with a command you have not run yet (get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue).",
+    "reason": "The previous fix did not resolve the issue, so we need to reapply the fix to raise the pool size and kill idle-in-transaction sessions.",
+    "ok": false
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F06",
+    "target": "db-primary.internal",
+    "service": "postgres",
+    "obs": "flush_dns <hostname> db-primary.internal applied on postgres: alerts cleared, error rate back to baseline",
+    "reason": "Flush stale DNS to resolve the current database primary",
+    "ok": true
+   }
+  ],
+  "root_cause": "Stale DNS resolution after DB failover",
+  "learned": null,
+  "retired": [
+   "mem-0004"
+  ]
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-30",
+  "shift": "A",
+  "night": 14,
+  "cause": "C05b",
+  "alert": "inventory-svc keeps restarting: OOMKilled",
+  "first_seen": 1,
+  "trap": 1,
+  "resolved": 0,
+  "steps": 12,
+  "tokens_in": 15003,
+  "tokens_out": 774,
+  "seconds": 56.99,
+  "used_memory": "mem-0020",
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 2,
+  "match_quality": "high",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F05",
+    "target": "inventory-jvm-opts",
+    "service": "inventory-svc",
+    "obs": "fix_heap_limit <configmap> inventory-jvm-opts applied on inventory-svc: symptoms persist (inventory-svc keeps restarting: OOMKilled) The remembered fix did not work here: the ledger retires it and the Fixer will refuse F05 inventory-jvm-opts for the rest of this page.",
+    "reason": "Adjusting JVM heap limit to fit container memory constraints",
+    "ok": false
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F05",
+    "target": "inventory-jvm-opts",
+    "service": "inventory-svc",
+    "obs": "REFUSED by Fixer: the fix ledger retired F05 inventory-jvm-opts for this alert (F05 inventory-jvm-opts failed earlier in this page). The cause is different this time. Find what is different with a command you have not run yet (get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue).",
+    "reason": "Attempt to adjust JVM heap limit via configmap to prevent OOMKilled",
+    "ok": false
+   },
+   {
+    "action": "get_logs",
+    "service": "inventory-svc",
+    "obs": "inventory-svc: no errors above WARN in last 15m (4 warnings: retry ok)",
+    "reason": "To identify if there is a memory leak or unexpected heap growth causing the OOMKilled errors"
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F13",
+    "target": "inventory-svc",
+    "service": "inventory-svc",
+    "obs": "REFUSED by Fixer: target 'inventory-svc' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "Restarting the service may resolve the OOMKilled issue if the configuration is still incorrect or if the fix was not applied properly.",
+    "ok": false
+   },
+   {
+    "action": "get_config",
+    "service": "inventory-svc",
+    "obs": "configmap inventory-jvm-opts: JAVA_OPTS=-XX:MaxRAMPercentage=75 (already fixed, ok)",
+    "reason": "Verify current JVM options and container memory limits to identify the root cause of OOMKilled"
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F05",
+    "target": "inventory-jvm-opts",
+    "service": "inventory-svc",
+    "obs": "REFUSED by Fixer: the fix ledger retired F05 inventory-jvm-opts for this alert (F05 inventory-jvm-opts failed earlier in this page). The cause is different this time. Find what is different with a command you have not run yet (get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue).",
+    "reason": "The fix was previously applied but the issue persists, indicating a possible misconfiguration or residual memory pressure.",
+    "ok": false
+   },
+   {
+    "action": "get_metrics",
+    "service": "inventory-svc",
+    "obs": "heap grows 40MB/min until kill, restarts=11",
+    "reason": "Check metrics to identify if memory usage is consistently high or if there's a leak"
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F15",
+    "target": "inventory-svc",
+    "service": "inventory-svc",
+    "obs": "REFUSED by Fixer: target 'inventory-svc' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "Raise client timeouts to prevent OOMKilled due to slow response times",
+    "ok": false
+   },
+   {
+    "action": "get_queue",
+    "service": "inventory-svc",
+    "obs": "inventory-svc: no queues owned or depth=0",
+    "reason": "Check if queue consumers are causing memory leaks or excessive memory usage due to unprocessed messages"
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F14",
+    "target": "inventory-svc",
+    "service": "inventory-svc",
+    "obs": "REFUSED by Fixer: target 'inventory-svc' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "Scale up inventory-svc to add more replicas and distribute the load, reducing memory pressure on individual pods.",
+    "ok": false
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F13",
+    "target": "inventory-svc",
+    "service": "inventory-svc",
+    "obs": "REFUSED by Fixer: target 'inventory-svc' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "Restarting the service to apply the fix and resolve the OOMKilled issue.",
+    "ok": false
+   },
+   {
+    "action": "get_deploys",
+    "service": "inventory-svc",
+    "obs": "inventory-svc v5.8.0 deployed 2 min ago ('cache all SKUs in memory'); previous v5.7.0 healthy",
+    "reason": "Check if a recent deploy introduced a memory leak or misconfiguration"
+   }
+  ],
+  "root_cause": "Verify deploy version for potential configuration or code issues",
+  "learned": "mem-0099",
+  "retired": [
+   "mem-0020"
+  ]
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-31",
+  "shift": "B",
+  "night": 15,
+  "cause": "C12",
+  "alert": "gateway 503 errors come and go",
+  "first_seen": 0,
+  "trap": 0,
+  "resolved": 0,
+  "steps": 12,
+  "tokens_in": 16198,
+  "tokens_out": 583,
+  "seconds": 46.91,
+  "used_memory": "mem-0082",
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 1,
+  "match_quality": "low",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F16",
+    "target": "node-9",
+    "service": "k8s-nodes",
+    "obs": "drain_node <node name> node-9 applied on k8s-nodes: symptoms persist (gateway 503 errors come and go) The remembered fix did not work here: the ledger retires it and the Fixer will refuse F16 node-9 for the rest of this page.",
+    "reason": "Drain and cordon node-9 to resolve disk latency issues causing intermittent 503 errors on the gateway.",
+    "ok": false
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F15",
+    "target": "gateway",
+    "service": "gateway",
+    "obs": "REFUSED by Fixer: target 'gateway' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "Raising client timeouts can help mitigate transient 503 errors caused by upstream service instability.",
+    "ok": false
+   },
+   {
+    "action": "get_metrics",
+    "service": "gateway",
+    "obs": "gateway: symptom confirmed (gateway 503 errors come and go); own cpu/mem normal; errors are on upstream calls",
+    "reason": "To determine the exact cause of the intermittent 503 errors and find the correct target for the fix."
+   },
+   {
+    "action": "get_metrics",
+    "service": "gateway",
+    "obs": "(same output as before) gateway: symptom confirmed (gateway 503 errors come and go); own cpu/mem normal; errors are on upstream calls -- you already ran get_metrics on gateway; try a different command or service",
+    "reason": "Check metrics for upstream service latency or errors"
+   },
+   {
+    "action": "get_queue",
+    "service": "notify-queue",
+    "obs": "notify-queue: no queues owned or depth=0",
+    "reason": "Check if notify-queue is causing upstream delays or failures that could impact gateway 503 errors"
+   },
+   {
+    "action": "get_queue",
+    "service": "search-db",
+    "obs": "search-db: no queues owned or depth=0",
+    "reason": ""
+   },
+   {
+    "action": "get_queue",
+    "service": "orders-worker",
+    "obs": "orders-worker: no queues owned or depth=0",
+    "reason": ""
+   },
+   {
+    "action": "get_queue",
+    "service": "notify-queue",
+    "obs": "(same output as before) notify-queue: no queues owned or depth=0 -- you already ran get_queue on notify-queue; try a different command or service",
+    "reason": ""
+   },
+   {
+    "action": "get_certs",
+    "service": "gateway",
+    "obs": "gateway: certificates valid for 288 more days",
+    "reason": "Check if the TLS certificate for gateway is expired or misconfigured, which could cause intermittent 503 errors."
+   },
+   {
+    "action": "get_dependencies",
+    "service": "gateway",
+    "obs": "gateway upstreams: k8s-nodes DEGRADED (errors/timeouts from here), edge-lb healthy, auth healthy",
+    "reason": "Determine which services gateway is dependent on and are experiencing issues"
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F16",
+    "target": "node-9",
+    "service": "k8s-nodes",
+    "obs": "REFUSED by Fixer: the fix ledger retired F16 node-9 for this alert (F16 node-9 failed earlier in this page). The cause is different this time. Find what is different with a command you have not run yet (get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue).",
+    "reason": "Drain and cordon node-9 to resolve disk latency issues affecting gateway service",
+    "ok": false
+   },
+   {
+    "action": "get_logs",
+    "service": "gateway",
+    "obs": "gateway: symptom confirmed (gateway 503 errors come and go); own cpu/mem normal; errors are on upstream calls",
+    "reason": "Check logs for specific upstream failures or patterns related to k8s-nodes"
+   }
+  ],
+  "root_cause": "Upstream errors from k8s-nodes",
+  "learned": "mem-0110",
+  "retired": [
+   "mem-0082"
+  ]
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-32",
+  "shift": "B",
+  "night": 15,
+  "cause": "C06",
+  "alert": "payments provider errors and timeouts",
+  "first_seen": 0,
+  "trap": 0,
+  "resolved": 1,
+  "steps": 1,
+  "tokens_in": 1125,
+  "tokens_out": 67,
+  "seconds": 7.78,
+  "used_memory": "mem-0026",
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 0,
+  "match_quality": "high",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F07",
+    "target": "cardco-live-key-2",
+    "service": "payments",
+    "obs": "rotate_api_key <key name> cardco-live-key-2 applied on payments: alerts cleared, error rate back to baseline",
+    "reason": "Rotate the provider API key to resolve the 401 invalid_api_key error",
+    "ok": true
+   }
+  ],
+  "root_cause": "Invalid API key causing provider timeouts",
+  "learned": null,
+  "retired": []
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-33",
+  "shift": "A",
+  "night": 16,
+  "cause": "C04",
+  "alert": "orders-worker error rate 6% right after deploy",
+  "first_seen": 0,
+  "trap": 0,
+  "resolved": 1,
+  "steps": 1,
+  "tokens_in": 1169,
+  "tokens_out": 93,
+  "seconds": 10.24,
+  "used_memory": "mem-0052",
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 0,
+  "match_quality": "high",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F04",
+    "target": "v2.8.0",
+    "service": "orders-worker",
+    "obs": "rollback_deploy <version to roll back TO> v2.8.0 applied on orders-worker: alerts cleared, error rate back to baseline",
+    "reason": "Rolling back to a verified stable version (v2.8.0) to resolve the error rate spike after deploy",
+    "ok": true
+   }
+  ],
+  "root_cause": "Recent deploy caused errors in orders-worker due to a version mismatch or deployment issue",
+  "learned": null,
+  "retired": []
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-34",
+  "shift": "A",
+  "night": 16,
+  "cause": "C06b",
+  "alert": "card payments failing (15%), provider calls time out",
+  "first_seen": 1,
+  "trap": 1,
+  "resolved": 1,
+  "steps": 5,
+  "tokens_in": 4698,
+  "tokens_out": 320,
+  "seconds": 26.25,
+  "used_memory": "mem-0026",
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 1,
+  "match_quality": "low",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F07",
+    "target": "cardco-live-key-2",
+    "service": "payments",
+    "obs": "rotate_api_key <key name> cardco-live-key-2 applied on payments: symptoms persist (card payments failing (15%), provider calls time out) The remembered fix did not work here: the ledger retires it and the Fixer will refuse F07 cardco-live-key-2 for the rest of this page.",
+    "reason": "Rotating the invalid API key will resolve the 401 errors and prevent timeouts",
+    "ok": false
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F07",
+    "target": "cardco-live-key-2",
+    "service": "payments",
+    "obs": "REFUSED by Fixer: the fix ledger retired F07 cardco-live-key-2 for this alert (F07 cardco-live-key-2 failed earlier in this page). The cause is different this time. Find what is different with a command you have not run yet (get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue).",
+    "reason": "Rotate the provider API key to resolve potential auth failure and timeouts",
+    "ok": false
+   },
+   {
+    "action": "get_logs",
+    "service": "payments",
+    "obs": "provider responded 429 too_many_requests (x10); cardco-client-rps=500 exceeds contract 50",
+    "reason": "Check logs for more detailed error messages or patterns that may indicate the root cause of the timeouts"
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F09",
+    "target": "cardco-client-rps",
+    "service": "payments",
+    "obs": "disable_flag <flag name> cardco-client-rps applied on payments: symptoms persist (card payments failing (15%), provider calls time out)",
+    "reason": "Reduce the rate limit to match the contract and prevent 429 errors",
+    "ok": false
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F10",
+    "target": "cardco-client-rps",
+    "service": "payments",
+    "obs": "tune_rate_limit <config key> cardco-client-rps applied on payments: alerts cleared, error rate back to baseline",
+    "reason": "Restore the rate-limit setting to its documented value to prevent exceeding the provider's contract limit.",
+    "ok": true
+   }
+  ],
+  "root_cause": "Rate limit exceeded causing timeouts",
+  "learned": "mem-0116",
+  "retired": [
+   "mem-0026"
+  ]
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-35",
+  "shift": "B",
+  "night": 17,
+  "cause": "C07",
+  "alert": "search is slow: p99 6s",
+  "first_seen": 0,
+  "trap": 0,
+  "resolved": 1,
+  "steps": 1,
+  "tokens_in": 1183,
+  "tokens_out": 71,
+  "seconds": 8.18,
+  "used_memory": "mem-0032",
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 0,
+  "match_quality": "high",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F08",
+    "target": "idx_products_sku",
+    "service": "search-db",
+    "obs": "add_index <index name> idx_products_sku applied on search-db: alerts cleared, error rate back to baseline",
+    "reason": "Recreate the missing index to improve query performance on search-db",
+    "ok": true
+   }
+  ],
+  "root_cause": "Missing index causing slow query on search-db",
+  "learned": null,
+  "retired": []
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-36",
+  "shift": "B",
+  "night": 17,
+  "cause": "C05b",
+  "alert": "inventory-svc OOMKilled, 4 restarts in 10 min",
+  "first_seen": 0,
+  "trap": 0,
+  "resolved": 1,
+  "steps": 2,
+  "tokens_in": 2473,
+  "tokens_out": 152,
+  "seconds": 14.53,
+  "used_memory": "mem-0020",
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 0,
+  "match_quality": "high",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F05",
+    "target": "inventory-jvm-opts",
+    "service": "inventory-svc",
+    "obs": "fix_heap_limit <configmap> inventory-jvm-opts applied on inventory-svc: symptoms persist (inventory-svc OOMKilled, 4 restarts in 10 min) The remembered fix did not work here: the ledger retires it and the Fixer will refuse F05 inventory-jvm-opts for the rest of this page.",
+    "reason": "Adjusting JVM heap settings to fit within container memory limits to prevent OOMKilled errors.",
+    "ok": false
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F04",
+    "target": "v5.7.0",
+    "service": "inventory-svc",
+    "obs": "rollback_deploy <version to roll back TO> v5.7.0 applied on inventory-svc: alerts cleared, error rate back to baseline",
+    "reason": "Rollback to previous healthy version v5.7.0 to resolve memory leak and OOMKilled issue.",
+    "ok": true
+   }
+  ],
+  "root_cause": "Memory leak in new release causing OOMKilled",
+  "learned": null,
+  "retired": [
+   "mem-0020"
+  ]
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-37",
+  "shift": "A",
+  "night": 18,
+  "cause": "C08",
+  "alert": "gateway 429 spike, 24% of requests throttled",
+  "first_seen": 0,
+  "trap": 0,
+  "resolved": 1,
+  "steps": 1,
+  "tokens_in": 1203,
+  "tokens_out": 78,
+  "seconds": 9.64,
+  "used_memory": "mem-0049",
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 0,
+  "match_quality": "low",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F10",
+    "target": "edge-ratelimit-rps",
+    "service": "gateway",
+    "obs": "tune_rate_limit <config key> edge-ratelimit-rps applied on gateway: alerts cleared, error rate back to baseline",
+    "reason": "The gateway is throttling 24% of requests due to a misconfigured rate limit, which needs to be restored to its documented value.",
+    "ok": true
+   }
+  ],
+  "root_cause": "Incorrect rate-limit configuration",
+  "learned": null,
+  "retired": []
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-38",
+  "shift": "A",
+  "night": 18,
+  "cause": "C11",
+  "alert": "some users (12%) cannot complete checkout",
+  "first_seen": 0,
+  "trap": 0,
+  "resolved": 1,
+  "steps": 2,
+  "tokens_in": 2744,
+  "tokens_out": 153,
+  "seconds": 16.63,
+  "used_memory": "mem-0068",
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 0,
+  "match_quality": "mid",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F01",
+    "target": "pgb-checkout-rw",
+    "service": "pgbouncer",
+    "obs": "raise_db_pool <pool name> pgb-checkout-rw applied on pgbouncer: symptoms persist (some users (12%) cannot complete checkout) The remembered fix did not work here: the ledger retires it and the Fixer will refuse F01 pgb-checkout-rw for the rest of this page.",
+    "reason": "Raise the connection pool size and kill idle-in-transaction sessions to alleviate the 502 errors and latency issues.",
+    "ok": false
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F09",
+    "target": "new_pricing_engine",
+    "service": "checkout-api",
+    "obs": "disable_flag <flag name> new_pricing_engine applied on checkout-api: alerts cleared, error rate back to baseline",
+    "reason": "Disable the new pricing engine flag to resolve checkout errors for affected users",
+    "ok": true
+   }
+  ],
+  "root_cause": "Missing tax region in new pricing engine cohort causing checkout errors",
+  "learned": null,
+  "retired": [
+   "mem-0004"
+  ]
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-39",
+  "shift": "B",
+  "night": 19,
+  "cause": "C06b",
+  "alert": "payments provider errors and timeouts",
+  "first_seen": 0,
+  "trap": 0,
+  "resolved": 1,
+  "steps": 5,
+  "tokens_in": 6119,
+  "tokens_out": 331,
+  "seconds": 27.88,
+  "used_memory": "mem-0026",
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 2,
+  "match_quality": "high",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F07",
+    "target": "cardco-live-key-2",
+    "service": "payments",
+    "obs": "rotate_api_key <key name> cardco-live-key-2 applied on payments: symptoms persist (payments provider errors and timeouts) The remembered fix did not work here: the ledger retires it and the Fixer will refuse F07 cardco-live-key-2 for the rest of this page.",
+    "reason": "Rotate the invalid API key to resolve the 401 errors and timeouts in payments.",
+    "ok": false
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F07",
+    "target": "cardco-live-key-2",
+    "service": "payments",
+    "obs": "REFUSED by Fixer: the fix ledger retired F07 cardco-live-key-2 for this alert (F07 cardco-live-key-2 failed earlier in this page). The cause is different this time. Find what is different with a command you have not run yet (get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue).",
+    "reason": "The API key was rotated, but the issue persists, indicating a deeper issue with the provider connection or configuration.",
+    "ok": false
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F07",
+    "target": "cardco-live-key-2",
+    "service": "payments",
+    "obs": "REFUSED by Fixer: the fix ledger retired F07 cardco-live-key-2 for this alert (F07 cardco-live-key-2 failed earlier in this page). The cause is different this time. Find what is different with a command you have not run yet (get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue).",
+    "reason": "Rotate the provider API key from the vault to resolve the invalid key issue.",
+    "ok": false
+   },
+   {
+    "action": "get_logs",
+    "service": "payments",
+    "obs": "provider responded 429 too_many_requests (x19); cardco-client-rps=500 exceeds contract 50",
+    "reason": "Check logs for new error patterns or additional context beyond the initial 401 response"
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F10",
+    "target": "cardco-client-rps",
+    "service": "payments",
+    "obs": "tune_rate_limit <config key> cardco-client-rps applied on payments: alerts cleared, error rate back to baseline",
+    "reason": "Restore the rate-limit setting to its documented value to prevent exceeding the provider's limit.",
+    "ok": true
+   }
+  ],
+  "root_cause": "Provider rate limit exceeded causing 429 errors",
+  "learned": "mem-0125",
+  "retired": [
+   "mem-0026"
+  ]
+ },
+ {
+  "mode": "nightshift",
+  "inc_id": "INC-40",
+  "shift": "B",
+  "night": 19,
+  "cause": "C12",
+  "alert": "gateway 503 errors come and go",
+  "first_seen": 0,
+  "trap": 0,
+  "resolved": 1,
+  "steps": 4,
+  "tokens_in": 5080,
+  "tokens_out": 263,
+  "seconds": 22.22,
+  "used_memory": "mem-0110",
+  "stale_fix_applied": 0,
+  "stale_fix_blocked": 0,
+  "match_quality": "mid",
+  "history": [
+   {
+    "action": "apply_fix",
+    "fix": "F16",
+    "target": "node-18",
+    "service": "k8s-nodes",
+    "obs": "drain_node <node name> node-18 applied on k8s-nodes: symptoms persist (gateway 503 errors come and go) The remembered fix did not work here: the ledger retires it and the Fixer will refuse F16 node-18 for the rest of this page.",
+    "reason": "Drain and cordon the unhealthy node to resolve the gateway 503 errors.",
+    "ok": false
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F13",
+    "target": "gateway",
+    "service": "gateway",
+    "obs": "REFUSED by Fixer: target 'gateway' is a service name or does not appear in any evidence or memory. The target is the exact thing in angle brackets (a version, node, key, flag, path...). Find the exact name first with one of: get_metrics, get_logs, get_deploys, get_config, get_pool_stats, get_dependencies, get_certs, get_queue.",
+    "reason": "Restarting gateway pods to clear any transient issues caused by the unhealthy node",
+    "ok": false
+   },
+   {
+    "action": "get_dependencies",
+    "service": "k8s-nodes",
+    "obs": "upstreams healthy except node-4: error_rate=150% (others 0.1%)",
+    "reason": "Identify the exact node name to apply the fix"
+   },
+   {
+    "action": "apply_fix",
+    "fix": "F16",
+    "target": "node-4",
+    "service": "k8s-nodes",
+    "obs": "drain_node <node name> node-4 applied on k8s-nodes: alerts cleared, error rate back to baseline",
+    "reason": "Drain and cordon the unhealthy node to resolve the gateway 503 errors.",
+    "ok": true
+   }
+  ],
+  "root_cause": "Unhealthy node causing gateway 503 errors",
+  "learned": "mem-0128",
+  "retired": [
+   "mem-0110"
+  ]
+ }
+]

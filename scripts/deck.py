@@ -74,7 +74,8 @@ def main():
             led += (f"<tr><td>{label}</td><td>{pct(avg(k, 'repeat', 'accuracy'))}</td><td>{pct(avg(k, 'trap', 'accuracy'))}</td>"
                     f"<td{win}>{f[k]:.1f} per run</td><td>{ref[k]:.1f} per run</td></tr>")
         led_note = (f"Offline, mean of {len(kinds['noledger'])} seeds. A failed fix is a real change to production "
-                    "(rollback, restart, drain, config edit) that did not clear the page.")
+                    "(rollback, restart, drain, config edit) that did not clear the page. Resolution barely moves; "
+                    f"wrong changes to production drop {round((1 - f['full'] / f['noledger']) * 100)}%.")
     evs = [json.loads(x) for r in runs for x in (r / "events.jsonl").read_text().splitlines()]
     hid = {e["memory_id"] for e in evs if e["kind"] == "human"}
     reused = [x for r in runs for x in json.loads((r / "incidents.json").read_text())

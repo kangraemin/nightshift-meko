@@ -11,7 +11,7 @@ A Postgres ledger records whether each remembered fix still works, so a fix that
 
 Theme: **02 Agentic support: Never Solve It Twice** (internal SRE support).
 
-- Demo video (4:14): https://kangraemin.github.io/nightshift-meko/docs/video/nightshift-demo.mp4
+- Demo video (4:24): https://kangraemin.github.io/nightshift-meko/docs/video/nightshift-demo.mp4
 - Replay a live run in the browser: https://kangraemin.github.io/nightshift-meko/dashboard/
 - Slides: [docs/deck.pdf](docs/deck.pdf)
 
@@ -68,6 +68,19 @@ Same Night Shift agent and pages, offline (in-process Meko stand-in, SQLite ledg
 
 - The first row still searches the runbook in Meko instead of pasting it, so it isolates retrieval from memory. Its first-seen score is the share of the gain that comes from a shorter, focused prompt rather than from remembering.
 - 13 of the 25 repeats first happened on the other shift. Without sharing, those start from scratch.
+
+### Does the Postgres ledger matter?
+
+Same offline runs, 3 seeds, with the ledger switched off (`--no-ledger`): memories are still learned and shared, but every remembered fix looks valid forever, like a plain memory store.
+
+| Night Shift lane, offline | Repeats | Traps | All pages | Failed fixes applied to production | Fixes refused by the Fixer |
+|---|---|---|---|---|---|
+| Memory without the ledger (`--no-ledger`) | 92% | 33% | 78% | 20.3 per run | 21.0 per run |
+| Memory checked against the ledger | 91% | 33% | 78% | 12.3 per run | 29.7 per run |
+
+- A failed fix is a real change (rollback, restart, drain, config edit) that did not clear the page; the simulator counts each one.
+- Pages resolved barely move: the ledger does not find causes. What it changes is how many wrong changes reach production: 20.3 → 12.3 per run (39% fewer).
+- Without the ledger the Fixer still refuses a fix that already failed on the same page; the ledger adds refusals of fixes that failed on earlier pages, on either shift.
 
 ### What did not improve
 
