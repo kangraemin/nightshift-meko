@@ -56,7 +56,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--offline", action="store_true", help="in-process Meko stand-in + SQLite")
     ap.add_argument("--seed", type=int, default=1)
-    ap.add_argument("--limit", type=int, default=len(sim.SCHEDULE))
+    ap.add_argument("--limit", type=int, default=40)
     ap.add_argument("--modes", default="baseline,nightshift")
     ap.add_argument("--run-id", default=None)
     ap.add_argument("--no-librarian", action="store_true")
@@ -64,9 +64,12 @@ def main():
     ap.add_argument("--no-memory", action="store_true", help="control: Night Shift searches the runbook in Meko but remembers nothing")
     ap.add_argument("--no-ledger", action="store_true", help="ablation: memories never expire; no retirement, no stale-fix refusal")
     ap.add_argument("--no-humans", action="store_true", help="do not store the on-call human's fix after a page the agent lost")
+    ap.add_argument("--schedule", default="main", choices=["main", "traps"],
+                    help="traps: 40 pages with 10 traps instead of 3, to measure the ledger")
     ap.add_argument("--wiki-notes", action="store_true",
                     help="fair control: the runbook lane also gets the on-call human's note, appended to the wiki, after a page it lost")
     a = ap.parse_args()
+    os.environ["NIGHTSHIFT_SCHEDULE"] = a.schedule
 
     run_id = a.run_id or f"{'off' if a.offline else 'live'}-s{a.seed}{'-noshare' if a.no_share else ''}{'-nomemory' if a.no_memory else ''}{'-noledger' if a.no_ledger else ''}{'-nohumans' if a.no_humans else ''}{'-wikinotes' if a.wiki_notes else ''}-{time.strftime('%m%d%H%M')}"
     out = ROOT / "results" / run_id
@@ -124,7 +127,7 @@ def main():
         agents.curator(ma, ledger, emit, night)
 
     summary = {"run_id": run_id, "seed": a.seed, "model": llm.MODEL, "ledger": ledger.kind,
-               "offline": a.offline, "share": not a.no_share, "memory": not a.no_memory, "ledger_on": not a.no_ledger, "humans": not a.no_humans, "wiki_notes": a.wiki_notes, "incidents": len(incidents), "results": summarize(rows),
+               "offline": a.offline, "share": not a.no_share, "memory": not a.no_memory, "ledger_on": not a.no_ledger, "humans": not a.no_humans, "wiki_notes": a.wiki_notes, "schedule": a.schedule, "incidents": len(incidents), "results": summarize(rows),
                "meko_calls": {"A": dict(ma.calls), "B": dict(mb.calls)},
                "fix_validity": [list(map(str, r)) for r in ledger.table("fix_validity")]}
     (out / "incidents.json").write_text(json.dumps(rows, ensure_ascii=False, indent=1))

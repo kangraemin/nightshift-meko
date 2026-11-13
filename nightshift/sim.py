@@ -8,6 +8,7 @@ simulator is the judge: accuracy is never graded by an LLM.
 """
 from __future__ import annotations
 
+import os
 import random
 from dataclasses import dataclass, field
 
@@ -133,11 +134,53 @@ CAUSES: dict[str, Cause] = {c.id: c for c in [
           {"get_logs": "provider responded 429 too_many_requests (x{w}); cardco-client-rps=500 exceeds contract 50",
            "get_config": "cardco-client-rps=500 (contract allows 50)",
            "get_dependencies": "provider.api: reachable, auth=OK (key valid), throttled"}, target="cardco-client-rps", v2_of="C06"),
+    # --- extra traps, used only by the trap-heavy schedule (--schedule traps) ---
+    Cause("C02b", "auth", "one bad edge node failing handshakes",
+          ["auth 5xx spike, TLS handshake failures from clients", "login failing: auth returns 5xx, clients report SSL errors",
+           "auth error rate {p}%, handshake errors in edge logs"], "F16",
+          {"get_certs": "cert auth-edge-2027 (auth.internal) valid for 300 more days (renewed)",
+           "get_dependencies": "edge nodes: node-{w} handshake_errors={p}0% (others 0.1%)",
+           "get_logs": "handshake failures all from node-{w}: tls: internal error (x{w})"}, target="node-{w}", v2_of="C02"),
+    Cause("C03b", "notifications", "mail provider rate limit misconfigured",
+          ["notifications delayed by {s} minutes", "push and email notifications are late (~{s} min)",
+           "notification latency SLO breached, {s} min behind"], "F10",
+          {"get_queue": "queue notify.outbound depth={w}00 growing; consumer group notify-sender-v2: 6/6 running, each throttled",
+           "get_config": "notify-smtp-rps=5 (documented: 500), changed {s}h ago",
+           "get_logs": "smtp send throttled by notify-smtp-rps (x{w})"}, target="notify-smtp-rps", v2_of="C03"),
+    Cause("C04b", "orders-worker", "broken feature flag, release is fine",
+          ["orders-worker error rate {p}% right after deploy", "orders-worker failing jobs since the last release",
+           "spike of failed order jobs ({p}%) after deploy"], "F09",
+          {"get_deploys": "orders-worker v2.{m}.0 deployed {s} min ago; canary on v2.{n}.0 shows the same errors",
+           "get_config": "flag orders_async_v3 enabled {s} min ago, same time as the deploy",
+           "get_logs": "AsyncOrderV3Error: missing idempotency key (only when orders_async_v3=on) x{w}"}, target="orders_async_v3", v2_of="C04"),
+    Cause("C07b", "search", "slow disk on one search-db node",
+          ["search p99 {s}s, users report slow results", "search is slow: p99 {s}s",
+           "search latency alarm p99={s}s"], "F16",
+          {"get_logs": "queries use idx_products_sku (ok); slow only when routed to node-{w}",
+           "get_metrics": "search-db node-{w} disk latency {s}00ms (others 3ms)"}, target="node-{w}", v2_of="C07"),
+    Cause("C08b", "gateway", "bad gateway release",
+          ["gateway 429 spike, {p}% of requests throttled", "clients get HTTP 429 from gateway",
+           "gateway throttling {p}% of traffic"], "F04",
+          {"get_config": "edge-ratelimit-rps=5000 (documented: 5000, ok)",
+           "get_deploys": "gateway v3.{m}.0 deployed {s}h ago ('new token bucket'); previous v3.{n}.0 healthy",
+           "get_logs": "token bucket refill=0 after v3.{m}.0 (x{w})"}, target="v3.{n}.0", v2_of="C08"),
+    Cause("C09b", "orders-worker", "disk full from temp files",
+          ["orders-worker write errors, jobs stuck", "orders-worker: 'no space left' alerts",
+           "orders-worker failing to persist job state"], "F11",
+          {"get_metrics": "disk_used=100% on /var/lib/orders/tmp (52G of spill files); /var/log/orders 12%",
+           "get_logs": "ENOSPC: no space left on device /var/lib/orders/tmp (x{w})"}, target="/var/lib/orders/tmp", v2_of="C09"),
+    Cause("C10b", "reports-cron", "expired database client certificate",
+          ["daily reports job did not run", "reports-cron missed its 02:00 run",
+           "no report emails today, reports-cron silent"], "F02",
+          {"get_dependencies": "lock store: key=reports/leader free (ok); postgres: TLS client auth FAILED",
+           "get_certs": "cert reports-db-client-2026 notAfter={s} days ago status=EXPIRED",
+           "get_logs": "x509: certificate reports-db-client-2026 has expired (x{w})"}, target="reports-db-client-2026", v2_of="C10"),
 ]}
 
 # Where the root cause actually lives when it is not the paged service.
 UPSTREAM = {"C01": "pgbouncer", "C01b": "postgres", "C02": "edge-lb", "C03": "notify-queue",
-            "C07": "search-db", "C12": "k8s-nodes", "C10": "lock-store", "C06b": "payments"}
+            "C07": "search-db", "C12": "k8s-nodes", "C10": "lock-store", "C06b": "payments",
+            "C02b": "edge-lb", "C07b": "search-db"}
 for _cid, _c in CAUSES.items():
     _c.paged = _c.service
     _c.service = UPSTREAM.get(_cid, _c.service)
@@ -157,6 +200,16 @@ SCHEDULE = [
     "C08", "C12", "C03", "C01b", "C09", "C05", "C10", "C11", "C01b", "C05b",
     "C12", "C06", "C04", "C06b", "C07", "C05b", "C08", "C11", "C06b", "C12",
 ]
+
+# Trap-heavy schedule (--schedule traps): the same 12 first-seen causes, then 10 traps (each the first time a
+# remembered fix stops working) and a repeat of each new cause. Used to measure the ledger with more than 3 traps.
+TRAP_SCHEDULE = [
+    "C01", "C02", "C03", "C01", "C04", "C05", "C02", "C06", "C07", "C03",
+    "C08", "C09", "C04", "C10", "C11", "C12", "C05", "C08",
+    "C01b", "C02b", "C03b", "C09", "C04b", "C05b", "C06b", "C07b", "C08b", "C09b", "C10b",
+    "C01b", "C02b", "C03b", "C04b", "C05b", "C06b", "C07b", "C08b", "C09b", "C10b", "C11",
+]
+SCHEDULES = {"main": SCHEDULE, "traps": TRAP_SCHEDULE}
 
 
 @dataclass
@@ -218,11 +271,12 @@ class Incident:
         return False, f"{FIXES[fix].split(':')[0]} {target or '(no target)'} applied on {service}: symptoms persist ({self.alert})"
 
 
-def build(seed: int = 0) -> list[Incident]:
+def build(seed: int = 0, schedule: str | None = None) -> list[Incident]:
+    """schedule: "main" (default) or "traps"; NIGHTSHIFT_SCHEDULE sets the default for a whole run."""
     r = random.Random(seed)
     seen: set[str] = set()
     out = []
-    for i, cid in enumerate(SCHEDULE):
+    for i, cid in enumerate(SCHEDULES[schedule or os.environ.get("NIGHTSHIFT_SCHEDULE", "main")]):
         c = CAUSES[cid]
         n = r.randint(3, 8)
         vals = {"p": r.randint(6, 31), "s": r.randint(2, 9), "w": r.randint(4, 19), "d": r.randint(900, 3000), "n": n, "m": n + 1}

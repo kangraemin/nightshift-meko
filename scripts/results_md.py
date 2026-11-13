@@ -37,6 +37,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--live", nargs="+", required=True)
     ap.add_argument("--ablation", nargs="+", required=True)
+    ap.add_argument("--traps", nargs="*", default=[], help="runs of the trap-heavy schedule (--schedule traps), ledger on and off")
     a = ap.parse_args()
     runs = [load(d) for d in a.live]
     n = len(runs)
@@ -151,7 +152,9 @@ def main():
         A = lambda k, f: avg(kinds[k], "repeat", f)  # noqa: E731
         out.append("Read fairly:")
         out.append("")
-        out.append(f"- Without any human input, the agents' own shared memory lifts repeats from {pct(A('baseline', 'accuracy'))} to {pct(A('nohumans', 'accuracy'))}.")
+        out.append(f"- Without any human input, repeats go from {pct(A('baseline', 'accuracy'))} to {pct(A('nohumans', 'accuracy'))}: "
+                   f"searching the runbook in Meko gives {pct(A('nomemory', 'accuracy'))}, and the agents' own shared memory adds the rest "
+                   "(a few points, close to the seed-to-seed spread).")
         out.append(f"- Given the same human notes, a wiki resolves about as many repeats as Night Shift ({pct(A('wikinotes', 'accuracy'))} vs {pct(A('full', 'accuracy'))}). "
                    f"Night Shift does it in {A('full', 'steps_mean'):.1f} steps instead of {A('wikinotes', 'steps_mean'):.1f} "
                    f"and {A('full', 'tokens_mean'):,.0f} tokens instead of {A('wikinotes', 'tokens_mean'):,.0f}, because it retrieves the one note that matches "
@@ -187,6 +190,25 @@ def main():
         out.append("- Without the ledger the Fixer still refuses a fix that already failed on the same page; "
                    "the ledger adds refusals of fixes that failed on earlier pages, on either shift.")
         out.append("")
+    if a.traps:
+        tk = {"on": [], "off": []}
+        for d in a.traps:
+            r = load(d)
+            tk["on" if r.get("ledger_on", True) else "off"].append((d, r["results"]["nightshift"]))
+        if tk["on"] and tk["off"]:
+            out.append(f"With only 3 traps per run the trap column above is noise. A second schedule (`--schedule traps`) keeps the same 12 first-seen causes "
+                       f"but adds 10 traps, each followed by a repeat of the new cause; {len(tk['on'])} seeds each, offline:")
+            out.append("")
+            out.append("| Trap-heavy schedule | Traps resolved (10 per run) | Repeats | All pages | Failed fixes applied | Fixes refused by the Fixer |")
+            out.append("|---|---|---|---|---|---|")
+            for k, label in (("off", "Memory without the ledger"), ("on", "Memory checked against the ledger")):
+                rs = [x for _, x in tk[k]]
+                per = " / ".join(pct(x["trap"]["accuracy"]) for x in rs)
+                fails = sum(failed_applies(d) for d, _ in tk[k]) / len(rs)
+                out.append(f"| {label} | {pct(sum(x['trap']['accuracy'] for x in rs) / len(rs))} ({per}) "
+                           f"| {pct(sum(x['repeat']['accuracy'] for x in rs) / len(rs))} | {pct(sum(x['all']['accuracy'] for x in rs) / len(rs))} "
+                           f"| {fails:.1f} per run | {sum(x['all']['stale_fix_blocked'] for x in rs) / len(rs):.1f} per run |")
+            out.append("")
     t = [r["results"]["nightshift"]["trap"]["accuracy"] for r in runs]
     tb = [r["results"]["baseline"]["trap"]["accuracy"] for r in runs]
     out.append("### What did not improve")

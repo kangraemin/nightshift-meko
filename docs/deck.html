@@ -34,7 +34,7 @@ img.arch { max-height: 560px; max-width: 1120px; display: block; margin: -8px au
 <section>
   <h1>Night Shift</h1>
   <p style="font-size:30px">On-call agents that never solve the same incident twice, even when the other shift solved it.</p>
-  <p style="font-size:26px">Repeats resolved: <b>55% → 71%</b> from the agents' own memory;<br><b>~90%</b> with the team's notes, at 42% of a wiki's tokens</p>
+  <p style="font-size:26px">Same answers as a wiki holding every on-call note, at <b>42% of the tokens</b>;<br><b>39% fewer</b> wrong fixes applied, thanks to the Postgres ledger</p>
   <p class="muted">ContextCon: Remember Everything · Theme 02 Agentic support: Never Solve It Twice</p>
   <div class="foot">github.com/kangraemin/nightshift-meko</div>
 </section>
@@ -132,7 +132,7 @@ img.arch { max-height: 560px; max-width: 1120px; display: block; margin: -8px au
   <h2>Limits and next steps</h2>
   <ul>
     <li>The incidents are simulated so that grading is exact. Real pages are messier.</li>
-    <li>One 8B local model, no paid API. A larger model solves more first-seen pages in both modes.</li>
+    <li>One 8B local model, no paid API. A larger model was not tested.</li>
     <li>{{LIMIT_TRAP}}</li>
     <li>Next: wire the agent's diagnostics to real tools behind the webhook, and let the ledger expire fixes after a deploy.</li>
   </ul>

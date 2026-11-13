@@ -38,7 +38,7 @@ e.style.transformOrigin=`50% ${window.scrollY-e.offsetTop}px`;e.style.transition
 e.style.transition=`transform ${s}s linear`;e.style.transform='scale(1.05)';}}"""
 
 INTRO = [
-    ("title", None, "i_title", "Night Shift. On-call agents that never solve the same incident twice, even when the other shift solved it. Without any human help, the agents' shared memory lifts repeat pages from 55 to 71 percent resolved. With the on-call team's notes it reaches about 90 percent, using less than half the tokens of the same notes in a wiki."),
+    ("title", None, "i_title", "Night Shift. On-call agents that never solve the same incident twice, even when the other shift solved it. Given the same on-call notes, it resolves as many repeat pages as a wiki that holds them all, with less than half the tokens, and its Postgres ledger cuts wrong fixes applied by 39 percent."),
     ("problem", "line", "i_p1", "Shift A fixes the 2 a.m. page. The fix lives in their own notes."),
     ("problem", "line", "i_p2", "The next night, shift B gets the same page, and starts from the wiki again."),
     ("problem", "line", "i_p3", "And sometimes a remembered fix stops working, but people keep applying it."),
@@ -267,13 +267,16 @@ def results(run, offline, seeds=()):
                  f"<td class='{'win' if n['accuracy'] > b['accuracy'] else ''}'>{pct(n['accuracy'])}</td></tr>")
     nr, br_, tr = s["nightshift"]["repeat"], s["baseline"]["repeat"], s["nightshift"]["trap"]
     o_full, o_priv, o_agent = off(""), off("-noshare"), off("-nohumans")
+    wk = [json.loads(Path(f"{offline}-s{i}-wikinotes/summary.json").read_text())["results"]["baseline"]["repeat"]["accuracy"]
+          for i in (1, 2, 3) if Path(f"{offline}-s{i}-wikinotes/summary.json").exists()]
+    o_wiki = round(sum(wk) / len(wk) * 100) if wk else None
     note = (f"Repeat pages: {br_['steps_mean']} → {nr['steps_mean']} steps, "
             f"{br_['tokens_mean']:,} → {nr['tokens_mean']:,} tokens per page. "
             f"Offline, 3 seeds, repeat pages: shared {o_full}%, private memory only {o_priv}%, agent fixes only (no human notes) {o_agent}%.")
     if seeds:  # every live seed, so the card does not rest on the one run replayed above
         reps = [json.loads((d / "summary.json").read_text())["results"] for d in seeds]
         m = lambda mode: round(sum(r[mode]["repeat"]["accuracy"] for r in reps) / len(reps) * 100)  # noqa: E731
-        note += f" Over {len(reps)} live seeds, repeat pages: {m('baseline')}% → {m('nightshift')}%."
+        note += f" Over {len(reps)} live seeds, repeat pages: {m('baseline')}% → {m('nightshift')}% (offline, a wiki given the same notes: {o_wiki}%, Night Shift {o_full}%)."
     fewer = round((1 - nr["tokens_mean"] / br_["tokens_mean"]) * 100)
     say = (f"In the run you just watched, on repeat pages, Night Shift resolved {round(nr['accuracy'] * 100)} percent, "
            f"against {round(br_['accuracy'] * 100)} for the runbook, with {fewer} percent fewer tokens. "
@@ -281,7 +284,8 @@ def results(run, offline, seeds=()):
            f"and {o_agent} from the agents' own fixes without any human notes. "
            f"Traps stay hard: {round(tr['accuracy'] * 100)} percent, against {round(s['baseline']['trap']['accuracy'] * 100)} for the runbook.")
     if seeds:
-        say += f" Across all {len(seeds)} live seeds, repeat pages went from {m('baseline')} to {m('nightshift')} percent."
+        say += (f" Across all {len(seeds)} live seeds, repeat pages went from {m('baseline')} to {m('nightshift')} percent; "
+                "most of that is the on-call notes reaching the next shift, since a wiki given the same notes does about as well.")
     fills = {"RES_TITLE": "The live run above: pages resolved", "RES_ROWS": rows, "RES_NOTE": note}
     return fills, say, 3
 

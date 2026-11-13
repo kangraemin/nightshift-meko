@@ -22,7 +22,9 @@ def pct(x):
 def main():
     argv = sys.argv[1:]
     abl_dirs = [Path(x) for x in argv[argv.index("--ablation") + 1:argv.index("--live")]]
-    runs = [Path(x) for x in argv[argv.index("--live") + 1:]]
+    tr_i = argv.index("--traps") if "--traps" in argv else len(argv)
+    runs = [Path(x) for x in argv[argv.index("--live") + 1:tr_i]]
+    trap_dirs = [Path(x) for x in argv[tr_i + 1:]]
     run = runs[0]
     sums = [json.loads((r / "summary.json").read_text())["results"] for r in runs]
     s = {m: {k: {f: sum(x[m][k][f] for x in sums) / len(sums) for f in ("accuracy", "steps_mean", "tokens_mean")}
@@ -88,11 +90,21 @@ def main():
         led_note = (f"Offline, mean of {len(kinds['noledger'])} seeds. A failed fix is a change to production "
                     "(rollback, restart, drain, config edit) applied to the simulated production that did not clear the page. Resolution barely moves; "
                     f"wrong changes to production drop {round((1 - f['full'] / f['noledger']) * 100)}%.")
+    if trap_dirs:
+        tk = {True: [], False: []}
+        for d in trap_dirs:
+            r = json.loads((d / "summary.json").read_text())
+            tk[r.get("ledger_on", True)].append((d, r["results"]["nightshift"]))
+        if tk[True] and tk[False]:
+            ta = lambda k: sum(x["trap"]["accuracy"] for _, x in tk[k]) / len(tk[k])  # noqa: E731
+            tf = lambda k: sum(failed_applies(d) for d, _ in tk[k]) / len(tk[k])  # noqa: E731
+            led_note += (f" With 10 traps per run ({len(tk[True])} seeds): traps resolved {pct(ta(False))} → {pct(ta(True))}, "
+                         f"failed fixes {tf(False):.1f} → {tf(True):.1f} per run.")
     evs = [json.loads(x) for r in runs for x in (r / "events.jsonl").read_text().splitlines()]
     hid = {e["memory_id"] for e in evs if e["kind"] == "human"}
     reused = [x for r in runs for x in json.loads((r / "incidents.json").read_text())
-              if x["mode"] == "nightshift" and x.get("used_memory") in hid]
-    human_note = (f"Over the {len(runs)} live runs: {len(hid)} human notes, and later pages that started from one were resolved "
+              if x["mode"] == "nightshift" and x.get("used_memory") in hid and not x.get("first_seen")]
+    human_note = (f"Over the {len(runs)} live runs: {len(hid)} human notes, and later repeat pages that started from one were resolved "
                   f"{sum(x['resolved'] for x in reused)} times out of {len(reused)}.")
 
     # trap story: first trap page in the Night Shift lane that retired or blocked a fix

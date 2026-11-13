@@ -72,7 +72,7 @@ Offline (in-process Meko stand-in, SQLite ledger), same pages and model, 3 seeds
 
 Read fairly:
 
-- Without any human input, the agents' own shared memory lifts repeats from 55% to 71%.
+- Without any human input, repeats go from 55% to 71%: searching the runbook in Meko gives 65%, and the agents' own shared memory adds the rest (a few points, close to the seed-to-seed spread).
 - Given the same human notes, a wiki resolves about as many repeats as Night Shift (91% vs 89%). Night Shift does it in 3.3 steps instead of 5.9 and 4,816 tokens instead of 11,366, because it retrieves the one note that matches instead of reading the whole wiki, and the wiki keeps growing every night.
 - So the live jump from 56% to 92% on repeats is mostly the human notes reaching the next shift; what Meko adds over a wiki is the cost per page, the agents' own learning, and the ledger below.
 
@@ -119,7 +119,8 @@ Same offline runs, 3 seeds, with the ledger switched off (`--no-ledger`): memori
 ### Postgres inside the context
 
 Retrieval alone cannot tell a good memory from a stale one.
-Night Shift keeps a small ledger next to the memories (AMP Postgres in the live run, SQLite offline):
+Night Shift keeps a small ledger next to the memories (AMP Postgres in the live run, SQLite offline) in the same datapack.
+Meko's documented way to reach a datapack's Postgres is a direct SQL connection (there is no MCP tool for SQL), so the ledger connects with the datapack's own connection string:
 
 - `fix_validity(memory_id, fix_id, service, symptom, learned_by, status, promoted, approval, approved_by, retired_reason, replaced_by)`
 - `incidents(mode, inc_id, shift, cause, first_seen, trap, resolved, steps, tokens_in, tokens_out, seconds, stale_fix_applied)`
@@ -201,7 +202,7 @@ Replay any run in the browser: `dashboard/index.html?run=../results/published/<r
 ## Limits
 
 - The benchmark incidents are simulated, so the scores are measured rather than judged; real pages have messier evidence. The webhook runs the same triage on real alerts, but the agent's diagnostics and fixes are only wired to the simulator.
-- One 8B local model. A larger model would solve more first-seen pages in both modes.
+- One 8B local model. A larger model was not tested.
 - No Anthropic or OpenAI API is called anywhere. Meko does its own memory extraction on its side.
 
 License: Apache 2.0
