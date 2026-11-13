@@ -1,0 +1,64 @@
+{
+ "run_id": "off-v8-s3-wikinotes",
+ "seed": 3,
+ "model": "qwen3:8b",
+ "ledger": "sqlite",
+ "offline": true,
+ "share": true,
+ "memory": true,
+ "ledger_on": true,
+ "humans": true,
+ "wiki_notes": true,
+ "incidents": 40,
+ "results": {
+  "baseline": {
+   "all": {
+    "n": 40,
+    "accuracy": 0.75,
+    "steps_mean": 6.67,
+    "tokens_mean": 11913,
+    "seconds_mean": 82.6,
+    "stale_fix_applied": 0,
+    "stale_fix_blocked": 0
+   },
+   "first_seen": {
+    "n": 12,
+    "accuracy": 0.583,
+    "steps_mean": 7.58,
+    "tokens_mean": 11307,
+    "seconds_mean": 86.69,
+    "stale_fix_applied": 0,
+    "stale_fix_blocked": 0
+   },
+   "repeat": {
+    "n": 25,
+    "accuracy": 0.88,
+    "steps_mean": 5.72,
+    "tokens_mean": 10847,
+    "seconds_mean": 74.32,
+    "stale_fix_applied": 0,
+    "stale_fix_blocked": 0
+   },
+   "trap": {
+    "n": 3,
+    "accuracy": 0.333,
+    "steps_mean": 11,
+    "tokens_mean": 23220,
+    "seconds_mean": 135.18,
+    "stale_fix_applied": 0,
+    "stale_fix_blocked": 0
+   }
+  },
+  "nightshift": {
+   "all": null,
+   "first_seen": null,
+   "repeat": null,
+   "trap": null
+  }
+ },
+ "meko_calls": {
+  "A": {},
+  "B": {}
+ },
+ "fix_validity": []
+}

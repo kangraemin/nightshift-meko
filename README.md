@@ -11,7 +11,7 @@ A Postgres ledger records whether each remembered fix still works, so a fix that
 
 Theme: **02 Agentic support: Never Solve It Twice** (internal SRE support).
 
-- Demo video (4:24): https://kangraemin.github.io/nightshift-meko/docs/video/nightshift-demo.mp4
+- Demo video (4:42): https://kangraemin.github.io/nightshift-meko/docs/video/nightshift-demo.mp4
 - Replay a live run in the browser: https://kangraemin.github.io/nightshift-meko/dashboard/
 - Slides: [docs/deck.pdf](docs/deck.pdf)
 
@@ -52,22 +52,33 @@ Cells show the mean over seeds, with each seed in brackets.
 What the memory layer did, summed over the live runs:
 
 - 61 fixes learned, 61 promoted by the curator, 28 retired by the ledger. These runs auto-approve every valid fix (`NIGHTSHIFT_REVIEW=auto`, no person at the keyboard); with `NIGHTSHIFT_REVIEW=manual` the curator shares only fixes a person approved with `python -m nightshift.review`.
-- 26 pages the agent lost were fixed by the on-call human, and their note went into Meko the same way. A later page started from one of those human notes 32 times and was resolved 28 times.
+- 26 pages the agent lost were fixed by the on-call human, and their note went into Meko the same way. In this benchmark the simulator writes that note from the page's true cause (a stand-in for the engineer's write-up), so pages that start from one are easier.
+- Split of the 75 live repeat pages: 30 started from a human note and 28 were resolved; the other 45 relied on the agents' own memory and 41 were resolved (91%). The offline table below gives the runbook lane the same human notes for a fair comparison.
 - Retired fixes were refused 53 times. A fix the ledger had already retired was still applied 10 times on 8 pages: 7 of those pages were resolved, because the old cause had really come back and a diagnostic printed the same target (the fresh-evidence rule); the rest were wasted retries.
 - The librarian answered 40 searches that Meko scored as weak matches. Replaying them, `selflearning_verify` moved 34 to a better match band, 27 of them to the high band (this is Meko's own retrieval score, not a page outcome).
 
 ### Where does the gain come from?
 
-Same Night Shift agent and pages, offline (in-process Meko stand-in, SQLite ledger), 3 seeds, three switches:
+Offline (in-process Meko stand-in, SQLite ledger), same pages and model, 3 seeds, all runs on one machine with the same code. Each row switches one thing:
 
-| Night Shift lane, offline | First-seen | Repeats | All pages | Steps per repeat |
-|---|---|---|---|---|
-| Runbook search only, nothing remembered (`--no-memory`) | 64% | 64% (64% / 60% / 68%) | 62% | 7.8 |
-| Private memory only, no sharing (`--no-share`) | 67% | 71% (76% / 60% / 76%) | 68% | 6.0 |
-| Shared through Meko | 61% | 91% (92% / 92% / 88%) | 78% | 3.3 |
+| Offline lane | First-seen | Repeats | All pages | Steps per repeat | Tokens per repeat |
+|---|---|---|---|---|---|
+| Runbook pasted into the prompt | 61% | 55% (52% / 60% / 52%) | 55% | 8.8 | 11,812 |
+| Runbook pasted, plus each on-call human note added to the wiki (`--wiki-notes`) | 56% | 91% (92% / 92% / 88%) | 75% | 5.9 | 11,366 |
+| Night Shift, runbook search only, nothing remembered (`--no-memory`) | 61% | 65% (64% / 60% / 72%) | 62% | 7.8 | 8,051 |
+| Night Shift, private memory only, no sharing (`--no-share`) | 67% | 72% (76% / 60% / 80%) | 68% | 5.9 | 7,001 |
+| Night Shift, shared memory of the agent's own fixes only (`--no-humans`) | 64% | 71% (72% / 68% / 72%) | 66% | 5.4 | 7,261 |
+| Night Shift, shared memory of agent and human fixes | 61% | 89% (88% / 92% / 88%) | 78% | 3.3 | 4,816 |
 
-- The first row still searches the runbook in Meko instead of pasting it, so it isolates retrieval from memory. Its first-seen score is the share of the gain that comes from a shorter, focused prompt rather than from remembering.
+Read fairly:
+
+- Without any human input, the agents' own shared memory lifts repeats from 55% to 71%.
+- Given the same human notes, a wiki resolves about as many repeats as Night Shift (91% vs 89%). Night Shift does it in 3.3 steps instead of 5.9 and 4,816 tokens instead of 11,366, because it retrieves the one note that matches instead of reading the whole wiki, and the wiki keeps growing every night.
+- So the live jump from 56% to 92% on repeats is mostly the human notes reaching the next shift; what Meko adds over a wiki is the cost per page, the agents' own learning, and the ledger below.
+
+- The no-memory row still searches the runbook in Meko instead of pasting it, so it isolates retrieval from memory.
 - 13 of the 25 repeats first happened on the other shift. Without sharing, those start from scratch.
+- The human notes are written by the simulator from the page's true cause, as a stand-in for what the on-call engineer types after fixing a page by hand. The `--wiki-notes` row gives the runbook lane the same notes, so the comparison stays fair; the `--no-humans` row shows what the agent's own memory does without any human input.
 
 ### Does the Postgres ledger matter?
 
@@ -75,18 +86,18 @@ Same offline runs, 3 seeds, with the ledger switched off (`--no-ledger`): memori
 
 | Night Shift lane, offline | Repeats | Traps | All pages | Failed fixes applied to production | Fixes refused by the Fixer |
 |---|---|---|---|---|---|
-| Memory without the ledger (`--no-ledger`) | 92% | 33% | 78% | 20.3 per run | 21.0 per run |
-| Memory checked against the ledger | 91% | 33% | 78% | 12.3 per run | 29.7 per run |
+| Memory without the ledger (`--no-ledger`) | 91% | 33% | 78% | 19.7 per run | 22.3 per run |
+| Memory checked against the ledger | 89% | 44% | 78% | 12.0 per run | 32.0 per run |
 
-- A failed fix is a real change (rollback, restart, drain, config edit) that did not clear the page; the simulator counts each one.
-- Pages resolved barely move: the ledger does not find causes. What it changes is how many wrong changes reach production: 20.3 → 12.3 per run (39% fewer).
+- A failed fix is a change (rollback, restart, drain, config edit) applied to the simulated production that did not clear the page; the simulator counts each one.
+- Pages resolved barely move: the ledger does not find causes. What it changes is how many wrong changes reach (simulated) production: 19.7 → 12.0 per run (39% fewer).
 - Without the ledger the Fixer still refuses a fix that already failed on the same page; the ledger adds refusals of fixes that failed on earlier pages, on either shift.
 
 ### What did not improve
 
 - Traps: Night Shift resolved 33% of trap pages, the runbook lane 33%. The ledger stops the stale fix, but finding the new cause is still up to an 8B model.
 - The ledger can also over-block: when the old cause really returns but the agent never runs the diagnostic that prints the target, the retired fix stays refused and the page is lost (INC-33 in two of the three live seeds).
-- First-seen pages: memory cannot help there, yet Night Shift scored 61% against 56% live. The no-memory control scores 64% offline, so this part of the gain comes from retrieving a few runbook sections instead of pasting the whole runbook, not from the team's memory.
+- First-seen pages: memory cannot help there. Live, Night Shift scored 61% against 56%; offline, the no-memory control scores 61% and the pasted runbook 61%, so the live first-seen gap is within run-to-run noise, not a gain we claim.
 <!-- /RESULTS -->
 
 ## How Meko is used

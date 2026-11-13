@@ -1,11 +1,11 @@
 {
- "i_title": "Night Shift. On-call agents that never solve the same incident twice, even when the other shift solved it. Over three live runs, repeat pages went from 56 to 92 percent resolved.",
+ "i_title": "Night Shift. On-call agents that never solve the same incident twice, even when the other shift solved it. Without any human help, the agents' shared memory lifts repeat pages from 55 to 71 percent resolved. With the on-call team's notes it reaches about 90 percent, using less than half the tokens of the same notes in a wiki.",
  "i_p1": "Shift A fixes the 2 a.m. page. The fix lives in their own notes.",
  "i_p2": "The next night, shift B gets the same page, and starts from the wiki again.",
  "i_p3": "And sometimes a remembered fix stops working, but people keep applying it.",
  "i_a1": "Night Shift runs the two shifts as two Meko members who share one datapack.",
  "i_a2": "Each page is traced in a Meko conversation. A verified fix becomes a private memory and a postmortem.",
- "i_a3": "At the end of the night, the curator promotes the fixes a reviewer approved to the team's collective knowledge. When the agent gives up, the engineer's own fix goes in the same way.",
+ "i_a3": "At the end of the night, the curator promotes approved fixes to the team's collective knowledge. In production a person approves them; this benchmark approves automatically. When the agent gives up, the engineer's own fix goes in the same way.",
  "i_a4": "A Postgres ledger is joined with every memory hit, and records whether each remembered fix still works.",
  "i_a5": "Now, the same 40 pages, answered twice by the same local model.",
  "b_INC-01": "Left: the whole runbook is in the prompt. Right: Night Shift searches Meko first. Night one, and neither side has seen this page.",
@@ -24,6 +24,6 @@
  "p_5": "Shared knowledge: the team runbook, plus the fixes the curator promoted.",
  "p_6": "Each newly learned fix also left a postmortem artifact, from both shifts.",
  "p_7": "Self-learning: Meko scores how well each search matched. The librarian answers the weak ones and replays them.",
- "o_res": "In the run you just watched, on repeat pages, Night Shift resolved 96 percent, against 56 for the runbook, with 72 percent fewer tokens. In an offline run with private memory only, it reached 76 percent. Traps stay hard: 33 percent, against 33 for the runbook. Across all 3 live seeds, repeat pages went from 56 to 92 percent.",
+ "o_res": "In the run you just watched, on repeat pages, Night Shift resolved 96 percent, against 56 for the runbook, with 72 percent fewer tokens. Offline, sharing matters: 89 percent shared, 72 with private memory only, and 71 from the agents' own fixes without any human notes. Traps stay hard: 33 percent, against 33 for the runbook. Across all 3 live seeds, repeat pages went from 56 to 92 percent.",
  "o_end": "The code, the replay dashboard, and every recorded run are on GitHub. No paid model API was used."
 }

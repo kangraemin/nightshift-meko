@@ -1,0 +1,75 @@
+{
+ "run_id": "off-v8-s3-nomemory",
+ "seed": 3,
+ "model": "qwen3:8b",
+ "ledger": "sqlite",
+ "offline": true,
+ "share": true,
+ "memory": false,
+ "ledger_on": true,
+ "humans": true,
+ "wiki_notes": false,
+ "incidents": 40,
+ "results": {
+  "baseline": {
+   "all": null,
+   "first_seen": null,
+   "repeat": null,
+   "trap": null
+  },
+  "nightshift": {
+   "all": {
+    "n": 40,
+    "accuracy": 0.625,
+    "steps_mean": 8.03,
+    "tokens_mean": 8268,
+    "seconds_mean": 55.97,
+    "stale_fix_applied": 0,
+    "stale_fix_blocked": 0
+   },
+   "first_seen": {
+    "n": 12,
+    "accuracy": 0.5,
+    "steps_mean": 8.08,
+    "tokens_mean": 8564,
+    "seconds_mean": 80.85,
+    "stale_fix_applied": 0,
+    "stale_fix_blocked": 0
+   },
+   "repeat": {
+    "n": 25,
+    "accuracy": 0.72,
+    "steps_mean": 7.88,
+    "tokens_mean": 7986,
+    "seconds_mean": 46.08,
+    "stale_fix_applied": 0,
+    "stale_fix_blocked": 0
+   },
+   "trap": {
+    "n": 3,
+    "accuracy": 0.333,
+    "steps_mean": 9,
+    "tokens_mean": 9431,
+    "seconds_mean": 38.78,
+    "stale_fix_applied": 0,
+    "stale_fix_blocked": 0
+   }
+  }
+ },
+ "meko_calls": {
+  "A": {
+   "conversation_create": 21,
+   "knowledgebase_upload_document": 1,
+   "knowledgebase_search": 20,
+   "conversation_add_message": 20,
+   "track_token_usage": 20
+  },
+  "B": {
+   "conversation_create": 20,
+   "knowledgebase_search": 20,
+   "conversation_add_message": 20,
+   "track_token_usage": 20
+  }
+ },
+ "fix_validity": []
+}
