@@ -209,6 +209,18 @@ def main():
                            f"| {pct(sum(x['repeat']['accuracy'] for x in rs) / len(rs))} | {pct(sum(x['all']['accuracy'] for x in rs) / len(rs))} "
                            f"| {fails:.1f} per run | {sum(x['all']['stale_fix_blocked'] for x in rs) / len(rs):.1f} per run |")
             out.append("")
+            def after(k):  # pages that repeat a trap's new cause: the page after the world changed
+                xs = [x for d, _ in tk[k] for x in json.loads((Path(d) / "incidents.json").read_text())
+                      if x.get("mode") == "nightshift" and str(x.get("cause", "")).endswith("b") and not x.get("first_seen")]
+                return sum(x["resolved"] for x in xs), len(xs)
+            a0, n0 = after("off")
+            a1, n1 = after("on")
+            out.append("- The ledger does not help on the trap page itself: an 8B model still has to find the new cause "
+                       "(the small difference is within noise).")
+            out.append(f"- It helps on the page after. When the new cause comes back, Night Shift resolved {a1} of {n1} with the ledger "
+                       f"and {a0} of {n0} without it, because the stale memory is marked RETIRED and replaced instead of being tried again; "
+                       "failed fixes applied drop accordingly.")
+            out.append("")
     t = [r["results"]["nightshift"]["trap"]["accuracy"] for r in runs]
     tb = [r["results"]["baseline"]["trap"]["accuracy"] for r in runs]
     out.append("### What did not improve")

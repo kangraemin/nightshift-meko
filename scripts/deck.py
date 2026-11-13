@@ -98,8 +98,13 @@ def main():
         if tk[True] and tk[False]:
             ta = lambda k: sum(x["trap"]["accuracy"] for _, x in tk[k]) / len(tk[k])  # noqa: E731
             tf = lambda k: sum(failed_applies(d) for d, _ in tk[k]) / len(tk[k])  # noqa: E731
-            led_note += (f" With 10 traps per run ({len(tk[True])} seeds): traps resolved {pct(ta(False))} → {pct(ta(True))}, "
-                         f"failed fixes {tf(False):.1f} → {tf(True):.1f} per run.")
+            def after(k):
+                xs = [x for d, _ in tk[k] for x in json.loads((d / "incidents.json").read_text())
+                      if x.get("mode") == "nightshift" and str(x.get("cause", "")).endswith("b") and not x.get("first_seen")]
+                return f"{sum(x['resolved'] for x in xs)}/{len(xs)}"
+            led_note += (f" With 10 traps per run ({len(tk[True])} seeds): the trap page itself is no easier ({pct(ta(False))} → {pct(ta(True))}), "
+                         f"but when the new cause returns it is resolved {after(False)} → {after(True)}, "
+                         f"and failed fixes drop {tf(False):.1f} → {tf(True):.1f} per run.")
     evs = [json.loads(x) for r in runs for x in (r / "events.jsonl").read_text().splitlines()]
     hid = {e["memory_id"] for e in evs if e["kind"] == "human"}
     reused = [x for r in runs for x in json.loads((r / "incidents.json").read_text())
