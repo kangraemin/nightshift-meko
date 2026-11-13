@@ -88,8 +88,18 @@ def main():
     out.append(f"- {learned} fixes learned, {promoted} promoted by the curator, {retired} retired by the ledger. "
                "These runs auto-approve every valid fix (`NIGHTSHIFT_REVIEW=auto`, no person at the keyboard); "
                "with `NIGHTSHIFT_REVIEW=manual` the curator shares only fixes a person approved with `python -m nightshift.review`.")
+    reps = []
+    for d in a.live:
+        inc = json.loads((Path(d) / "incidents.json").read_text())
+        reps += [x for x in inc if x.get("mode") == "nightshift" and not x.get("first_seen")]
+    rh = [x for x in reps if x.get("used_memory") in human_ids]
+    ra = [x for x in reps if x not in rh]
     out.append(f"- {len(humans)} pages the agent lost were fixed by the on-call human, and their note went into Meko the same way. "
-               f"A later page started from one of those human notes {len(reused)} times and was resolved {sum(x['resolved'] for x in reused)} times.")
+               "In this benchmark the simulator writes that note from the page's true cause (a stand-in for the engineer's write-up), "
+               "so pages that start from one are easier.")
+    out.append(f"- Split of the {len(reps)} live repeat pages: {len(rh)} started from a human note and {sum(x['resolved'] for x in rh)} were resolved; "
+               f"the other {len(ra)} relied on the agents' own memory and {sum(x['resolved'] for x in ra)} were resolved "
+               f"({pct(sum(x['resolved'] for x in ra) / len(ra))}). The offline table below gives the runbook lane the same human notes for a fair comparison.")
     out.append(f"- Retired fixes were refused {blocked} times. A fix the ledger had already retired was still applied {stale} time{'s' if stale != 1 else ''}"
                f" on {len(stale_pages)} pages: {sum(stale_pages.values())} of those pages were resolved, because the old cause had really come back"
                " and a diagnostic printed the same target (the fresh-evidence rule); the rest were wasted retries.")
@@ -97,34 +107,63 @@ def main():
                f"`selflearning_verify` moved {improved} to a better match band, {to_high} of them to the high band "
                "(this is Meko's own retrieval score, not a page outcome).")
     out.append("")
-    kinds = {"nomemory": [], "noshare": [], "noledger": [], "full": []}
+    kinds = {k: [] for k in ("baseline", "wikinotes", "nomemory", "noshare", "nohumans", "noledger", "full")}
     dirs = {"noledger": [], "full": []}
     for d in a.ablation:
         r = load(d)
+        res = r["results"]
+        if r.get("wiki_notes"):
+            kinds["wikinotes"].append(res["baseline"])
+            continue
+        if res.get("baseline") and res["baseline"].get("all"):
+            kinds["baseline"].append(res["baseline"])
+        if not (res.get("nightshift") and res["nightshift"].get("all")):
+            continue
         k = ("nomemory" if not r.get("memory", True) else "noshare" if not r.get("share", True)
-             else "noledger" if not r.get("ledger_on", True) else "full")
-        kinds[k].append(r)
+             else "noledger" if not r.get("ledger_on", True) else "nohumans" if not r.get("humans", True) else "full")
+        kinds[k].append(res["nightshift"])
         if k in dirs:
             dirs[k].append(d)
     ns = len(kinds["full"])
-    avg = lambda rs, k, f: sum(r["results"]["nightshift"][k][f] for r in rs) / len(rs)  # noqa: E731
+    avg = lambda rs, k, f: sum(r[k][f] for r in rs) / len(rs)  # noqa: E731
     out.append("### Where does the gain come from?")
     out.append("")
-    out.append(f"Same Night Shift agent and pages, offline (in-process Meko stand-in, SQLite ledger), {ns} seeds, three switches:")
+    out.append(f"Offline (in-process Meko stand-in, SQLite ledger), same pages and model, {ns} seeds, all runs on one machine with the same code. "
+               "Each row switches one thing:")
     out.append("")
-    out.append("| Night Shift lane, offline | First-seen | Repeats | All pages | Steps per repeat |")
-    out.append("|---|---|---|---|---|")
-    for k, label in (("nomemory", "Runbook search only, nothing remembered (`--no-memory`)"),
-                     ("noshare", "Private memory only, no sharing (`--no-share`)"),
-                     ("full", "Shared through Meko")):
+    out.append("| Offline lane | First-seen | Repeats | All pages | Steps per repeat | Tokens per repeat |")
+    out.append("|---|---|---|---|---|---|")
+    rows_def = (("baseline", "Runbook pasted into the prompt"),
+                ("wikinotes", "Runbook pasted, plus each on-call human note added to the wiki (`--wiki-notes`)"),
+                ("nomemory", "Night Shift, runbook search only, nothing remembered (`--no-memory`)"),
+                ("noshare", "Night Shift, private memory only, no sharing (`--no-share`)"),
+                ("nohumans", "Night Shift, shared memory of the agent's own fixes only (`--no-humans`)"),
+                ("full", "Night Shift, shared memory of agent and human fixes"))
+    for k, label in rows_def:
         rs = kinds[k]
-        per = " / ".join(pct(r["results"]["nightshift"]["repeat"]["accuracy"]) for r in rs)
+        if not rs:
+            continue
+        per = " / ".join(pct(r["repeat"]["accuracy"]) for r in rs)
         out.append(f"| {label} | {pct(avg(rs, 'first_seen', 'accuracy'))} | {pct(avg(rs, 'repeat', 'accuracy'))} ({per}) "
-                   f"| {pct(avg(rs, 'all', 'accuracy'))} | {avg(rs, 'repeat', 'steps_mean'):.1f} |")
+                   f"| {pct(avg(rs, 'all', 'accuracy'))} | {avg(rs, 'repeat', 'steps_mean'):.1f} | {avg(rs, 'repeat', 'tokens_mean'):,.0f} |")
     out.append("")
-    out.append("- The first row still searches the runbook in Meko instead of pasting it, so it isolates retrieval from memory. "
-               "Its first-seen score is the share of the gain that comes from a shorter, focused prompt rather than from remembering.")
+    if kinds["wikinotes"] and kinds["nohumans"] and kinds["baseline"]:
+        A = lambda k, f: avg(kinds[k], "repeat", f)  # noqa: E731
+        out.append("Read fairly:")
+        out.append("")
+        out.append(f"- Without any human input, the agents' own shared memory lifts repeats from {pct(A('baseline', 'accuracy'))} to {pct(A('nohumans', 'accuracy'))}.")
+        out.append(f"- Given the same human notes, a wiki resolves about as many repeats as Night Shift ({pct(A('wikinotes', 'accuracy'))} vs {pct(A('full', 'accuracy'))}). "
+                   f"Night Shift does it in {A('full', 'steps_mean'):.1f} steps instead of {A('wikinotes', 'steps_mean'):.1f} "
+                   f"and {A('full', 'tokens_mean'):,.0f} tokens instead of {A('wikinotes', 'tokens_mean'):,.0f}, because it retrieves the one note that matches "
+                   "instead of reading the whole wiki, and the wiki keeps growing every night.")
+        out.append("- So the live jump from 56% to 92% on repeats is mostly the human notes reaching the next shift; "
+                   "what Meko adds over a wiki is the cost per page, the agents' own learning, and the ledger below.")
+        out.append("")
+    out.append("- The no-memory row still searches the runbook in Meko instead of pasting it, so it isolates retrieval from memory.")
     out.append("- 13 of the 25 repeats first happened on the other shift. Without sharing, those start from scratch.")
+    out.append("- The human notes are written by the simulator from the page's true cause, as a stand-in for what the on-call engineer "
+               "types after fixing a page by hand. The `--wiki-notes` row gives the runbook lane the same notes, so the comparison stays fair; "
+               "the `--no-humans` row shows what the agent's own memory does without any human input.")
     out.append("")
     if kinds["noledger"]:
         out.append("### Does the Postgres ledger matter?")
@@ -137,13 +176,13 @@ def main():
         for k, label in (("noledger", "Memory without the ledger (`--no-ledger`)"), ("full", "Memory checked against the ledger")):
             rs, ds = kinds[k], dirs[k]
             fails = sum(failed_applies(d) for d in ds) / len(ds)
-            ref = sum(r["results"]["nightshift"]["all"]["stale_fix_blocked"] for r in rs) / len(rs)
+            ref = sum(r["all"]["stale_fix_blocked"] for r in rs) / len(rs)
             out.append(f"| {label} | {pct(avg(rs, 'repeat', 'accuracy'))} | {pct(avg(rs, 'trap', 'accuracy'))} | {pct(avg(rs, 'all', 'accuracy'))} "
                        f"| {fails:.1f} per run | {ref:.1f} per run |")
         out.append("")
-        out.append("- A failed fix is a real change (rollback, restart, drain, config edit) that did not clear the page; the simulator counts each one.")
+        out.append("- A failed fix is a change (rollback, restart, drain, config edit) applied to the simulated production that did not clear the page; the simulator counts each one.")
         fl = {k: sum(failed_applies(d) for d in dirs[k]) / len(dirs[k]) for k in dirs}
-        out.append(f"- Pages resolved barely move: the ledger does not find causes. What it changes is how many wrong changes reach production: "
+        out.append(f"- Pages resolved barely move: the ledger does not find causes. What it changes is how many wrong changes reach (simulated) production: "
                    f"{fl['noledger']:.1f} → {fl['full']:.1f} per run ({round((1 - fl['full'] / fl['noledger']) * 100)}% fewer).")
         out.append("- Without the ledger the Fixer still refuses a fix that already failed on the same page; "
                    "the ledger adds refusals of fixes that failed on earlier pages, on either shift.")
@@ -159,9 +198,10 @@ def main():
     fs_b = sum(r["results"]["baseline"]["first_seen"]["accuracy"] for r in runs) / n
     fs_m = sum(r["results"]["nightshift"]["first_seen"]["accuracy"] for r in runs) / n
     nm = avg(kinds["nomemory"], "first_seen", "accuracy")
-    out.append(f"- First-seen pages: memory cannot help there, yet Night Shift scored {pct(fs_m)} against {pct(fs_b)} live. "
-               f"The no-memory control scores {pct(nm)} offline, so this part of the gain comes from retrieving a few runbook sections "
-               "instead of pasting the whole runbook, not from the team's memory.")
+    nb = avg(kinds["baseline"], "first_seen", "accuracy") if kinds["baseline"] else None
+    out.append(f"- First-seen pages: memory cannot help there. Live, Night Shift scored {pct(fs_m)} against {pct(fs_b)}; "
+               f"offline, the no-memory control scores {pct(nm)}" + (f" and the pasted runbook {pct(nb)}" if nb is not None else "")
+               + ", so the live first-seen gap is within run-to-run noise, not a gain we claim.")
     body = "\n".join(out)
     p = ROOT / "README.md"
     s = p.read_text()

@@ -300,14 +300,20 @@ def human_note(inc_id, paged, alert, cause, evidence_cmd, evidence_out, fix, tar
     return text
 
 
+def wiki_note(inc: Incident) -> str:
+    """The same on-call human note as human_handback, for the runbook lane: the team pastes it into the wiki."""
+    c = inc.cause
+    cmd, out = next(iter(c.clues.items()))
+    return human_note(inc.id, c.paged, inc.alert, c.title, f"{cmd} {c.service}", inc._fmt(out), c.fix, inc.target,
+                      c.service, inc.shift, cmd if "{" in c.target else None)
+
+
 def human_handback(res: Result, meko, ledger, emit):
     """The agent gave up, so the on-call human fixed the page. Their note goes into Meko like any other fix,
     marked as written by a person, so the next shift finds it at triage (theme 02: learn from people)."""
     inc = res.inc
     c = inc.cause
-    cmd, out = next(iter(c.clues.items()))
-    text = human_note(inc.id, c.paged, inc.alert, c.title, f"{cmd} {c.service}", inc._fmt(out), c.fix, inc.target,
-                      c.service, inc.shift, cmd if "{" in c.target else None)
+    text = wiki_note(inc)
     mid = meko.memory_add(res.cid, res.agent, text, {"incident": inc.id, "fix": c.fix, "service": c.service,
                                                      "verified": True, "shift": inc.shift, "source": "human"})
     if mid:

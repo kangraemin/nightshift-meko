@@ -1,6 +1,6 @@
 """Record the narrated demo video: intro cards, dashboard replay of a recorded run, Meko portal tour, results.
 
-    python scripts/record_demo.py results/<run_id> results/<run_id>-noshare  -> docs/video/nightshift-demo.mp4
+    python scripts/record_demo.py results/<live run> results/published/off-v8 [<live seed runs>...]  -> docs/video/nightshift-demo.mp4
 Needs MEKO_EMAIL / MEKO_PASSWORD (portal tour), ffmpeg, and a Python with kokoro-onnx for the voice
 (KOKORO_PY, default ~/.cache/kk/v/bin/python; model files in KOKORO_DIR). No paid API is called.
 Every step on screen is timed to its narration line; captions show the same words.
@@ -38,13 +38,13 @@ e.style.transformOrigin=`50% ${window.scrollY-e.offsetTop}px`;e.style.transition
 e.style.transition=`transform ${s}s linear`;e.style.transform='scale(1.05)';}}"""
 
 INTRO = [
-    ("title", None, "i_title", "Night Shift. On-call agents that never solve the same incident twice, even when the other shift solved it. Over three live runs, repeat pages went from 56 to 92 percent resolved."),
+    ("title", None, "i_title", "Night Shift. On-call agents that never solve the same incident twice, even when the other shift solved it. Without any human help, the agents' shared memory lifts repeat pages from 55 to 71 percent resolved. With the on-call team's notes it reaches about 90 percent, using less than half the tokens of the same notes in a wiki."),
     ("problem", "line", "i_p1", "Shift A fixes the 2 a.m. page. The fix lives in their own notes."),
     ("problem", "line", "i_p2", "The next night, shift B gets the same page, and starts from the wiki again."),
     ("problem", "line", "i_p3", "And sometimes a remembered fix stops working, but people keep applying it."),
     ("arch", None, "i_a1", "Night Shift runs the two shifts as two Meko members who share one datapack."),
     ("arch", None, "i_a2", "Each page is traced in a Meko conversation. A verified fix becomes a private memory and a postmortem."),
-    ("arch", None, "i_a3", "At the end of the night, the curator promotes the fixes a reviewer approved to the team's collective knowledge. When the agent gives up, the engineer's own fix goes in the same way."),
+    ("arch", None, "i_a3", "At the end of the night, the curator promotes approved fixes to the team's collective knowledge. In production a person approves them; this benchmark approves automatically. When the agent gives up, the engineer's own fix goes in the same way."),
     ("arch", None, "i_a4", "A Postgres ledger is joined with every memory hit, and records whether each remembered fix still works."),
     ("arch", None, "i_a5", "Now, the same 40 pages, answered twice by the same local model."),
 ]
@@ -251,19 +251,25 @@ def portal(p, datapack, durs):
     return out
 
 
-def results(run, noshare, seeds=()):
+def results(run, offline, seeds=()):
+    """offline: prefix of the offline runs, e.g. results/published/off-v8 -> off-v8-s{1,2,3}[-noshare|-nohumans]."""
     s = json.loads((run / "summary.json").read_text())["results"]
-    ns = json.loads((noshare / "summary.json").read_text())["results"]["nightshift"]
     pct = lambda x: f"{round(x * 100)}%"  # noqa: E731
-    rows = "<tr><th></th><th>Runbook in prompt</th><th>Night Shift</th><th>No sharing*</th></tr>"
+
+    def off(suffix):
+        rs = [json.loads(Path(f"{offline}-s{i}{suffix}/summary.json").read_text())["results"]["nightshift"]["repeat"]["accuracy"]
+              for i in (1, 2, 3) if Path(f"{offline}-s{i}{suffix}/summary.json").exists()]
+        return round(sum(rs) / len(rs) * 100)
+    rows = "<tr><th></th><th>Runbook in prompt</th><th>Night Shift</th></tr>"
     for k, label in (("repeat", "Repeat pages"), ("first_seen", "First-seen pages"), ("trap", "Trap pages")):
-        b, n, x = s["baseline"][k], s["nightshift"][k], ns[k]
+        b, n = s["baseline"][k], s["nightshift"][k]
         rows += (f"<tr class='line'><td>{label} ({n['n']})</td><td>{pct(b['accuracy'])}</td>"
-                 f"<td class='{'win' if n['accuracy'] > b['accuracy'] else ''}'>{pct(n['accuracy'])}</td><td>{pct(x['accuracy'])}</td></tr>")
+                 f"<td class='{'win' if n['accuracy'] > b['accuracy'] else ''}'>{pct(n['accuracy'])}</td></tr>")
     nr, br_, tr = s["nightshift"]["repeat"], s["baseline"]["repeat"], s["nightshift"]["trap"]
+    o_full, o_priv, o_agent = off(""), off("-noshare"), off("-nohumans")
     note = (f"Repeat pages: {br_['steps_mean']} → {nr['steps_mean']} steps, "
             f"{br_['tokens_mean']:,} → {nr['tokens_mean']:,} tokens per page. "
-            f"*Night Shift with private memory only, offline run of the same pages.")
+            f"Offline, 3 seeds, repeat pages: shared {o_full}%, private memory only {o_priv}%, agent fixes only (no human notes) {o_agent}%.")
     if seeds:  # every live seed, so the card does not rest on the one run replayed above
         reps = [json.loads((d / "summary.json").read_text())["results"] for d in seeds]
         m = lambda mode: round(sum(r[mode]["repeat"]["accuracy"] for r in reps) / len(reps) * 100)  # noqa: E731
@@ -271,7 +277,8 @@ def results(run, noshare, seeds=()):
     fewer = round((1 - nr["tokens_mean"] / br_["tokens_mean"]) * 100)
     say = (f"In the run you just watched, on repeat pages, Night Shift resolved {round(nr['accuracy'] * 100)} percent, "
            f"against {round(br_['accuracy'] * 100)} for the runbook, with {fewer} percent fewer tokens. "
-           f"In an offline run with private memory only, it reached {round(ns['repeat']['accuracy'] * 100)} percent. "
+           f"Offline, sharing matters: {o_full} percent shared, {o_priv} with private memory only, "
+           f"and {o_agent} from the agents' own fixes without any human notes. "
            f"Traps stay hard: {round(tr['accuracy'] * 100)} percent, against {round(s['baseline']['trap']['accuracy'] * 100)} for the runbook.")
     if seeds:
         say += f" Across all {len(seeds)} live seeds, repeat pages went from {m('baseline')} to {m('nightshift')} percent."
@@ -285,12 +292,12 @@ def ffdur(f):
 
 
 def main():
-    run, noshare = Path(sys.argv[1]), Path(sys.argv[2])
+    run, offline = Path(sys.argv[1]), sys.argv[2]
     beats = json.loads((OUT / "beats.json").read_text())
     speed = int(os.environ.get("REPLAY_SPEED", "22"))
     setup = next(json.loads(x) for x in (run / "events.jsonl").read_text().splitlines() if '"setup"' in x)
     datapack = setup["datapack"]
-    fills, res_say, nrows = results(run, noshare, [Path(x) for x in sys.argv[3:]])
+    fills, res_say, nrows = results(run, offline, [Path(x) for x in sys.argv[3:]])
 
     lines = {key: text for _, _, key, text in INTRO}
     lines.update({"b_" + k: v for k, v in beats.items()})

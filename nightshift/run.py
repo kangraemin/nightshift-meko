@@ -64,9 +64,11 @@ def main():
     ap.add_argument("--no-memory", action="store_true", help="control: Night Shift searches the runbook in Meko but remembers nothing")
     ap.add_argument("--no-ledger", action="store_true", help="ablation: memories never expire; no retirement, no stale-fix refusal")
     ap.add_argument("--no-humans", action="store_true", help="do not store the on-call human's fix after a page the agent lost")
+    ap.add_argument("--wiki-notes", action="store_true",
+                    help="fair control: the runbook lane also gets the on-call human's note, appended to the wiki, after a page it lost")
     a = ap.parse_args()
 
-    run_id = a.run_id or f"{'off' if a.offline else 'live'}-s{a.seed}{'-noshare' if a.no_share else ''}{'-nomemory' if a.no_memory else ''}{'-noledger' if a.no_ledger else ''}-{time.strftime('%m%d%H%M')}"
+    run_id = a.run_id or f"{'off' if a.offline else 'live'}-s{a.seed}{'-noshare' if a.no_share else ''}{'-nomemory' if a.no_memory else ''}{'-noledger' if a.no_ledger else ''}{'-nohumans' if a.no_humans else ''}{'-wikinotes' if a.wiki_notes else ''}-{time.strftime('%m%d%H%M')}"
     out = ROOT / "results" / run_id
     out.mkdir(parents=True, exist_ok=True)
     if a.offline:
@@ -85,6 +87,7 @@ def main():
 
     incidents = sim.build(a.seed)[: a.limit]
     rows, learned_text, night = [], {}, -1
+    wiki_notes = []  # --wiki-notes: human notes the runbook lane's team wrote into the wiki
     for inc in incidents:
         if inc.night != night and night >= 0 and "nightshift" in modes and not a.no_share and not a.no_memory:
             agents.curator(ma, ledger, emit, night)
@@ -98,7 +101,10 @@ def main():
         for mode in modes:
             fresh = sim.build(a.seed)[inc.idx]          # identical incident for each mode
             if mode == "baseline":
-                r = agents.run_baseline(fresh, runbook, emit, a.seed)
+                wiki = runbook + ("\n\n## On-call notes added by the team\n" + "\n".join(f"- {n}" for n in wiki_notes) if wiki_notes else "")
+                r = agents.run_baseline(fresh, wiki, emit, a.seed)
+                if a.wiki_notes and not r.resolved:
+                    wiki_notes.append(agents.wiki_note(fresh))
             else:
                 meko = ma if inc.shift == "A" else mb
                 r = agents.run_nightshift(fresh, meko, ledger, emit, a.seed, llm.MODEL, share=not a.no_share,
@@ -118,7 +124,7 @@ def main():
         agents.curator(ma, ledger, emit, night)
 
     summary = {"run_id": run_id, "seed": a.seed, "model": llm.MODEL, "ledger": ledger.kind,
-               "offline": a.offline, "share": not a.no_share, "memory": not a.no_memory, "ledger_on": not a.no_ledger, "humans": not a.no_humans, "incidents": len(incidents), "results": summarize(rows),
+               "offline": a.offline, "share": not a.no_share, "memory": not a.no_memory, "ledger_on": not a.no_ledger, "humans": not a.no_humans, "wiki_notes": a.wiki_notes, "incidents": len(incidents), "results": summarize(rows),
                "meko_calls": {"A": dict(ma.calls), "B": dict(mb.calls)},
                "fix_validity": [list(map(str, r)) for r in ledger.table("fix_validity")]}
     (out / "incidents.json").write_text(json.dumps(rows, ensure_ascii=False, indent=1))
