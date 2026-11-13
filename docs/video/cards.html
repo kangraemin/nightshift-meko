@@ -10,6 +10,7 @@ html, body { margin: 0; width: 1280px; height: 720px; overflow: hidden; backgrou
   font: 500 26px/1.45 -apple-system, "Segoe UI", Roboto, sans-serif; }
 .scene { position: absolute; inset: 0; padding: 90px 110px; opacity: 0; transition: opacity 400ms ease; }
 .scene.on { opacity: 1; animation: drift 30s linear forwards; }
+#end.on { animation-duration: 7s; }
 @keyframes drift { from { transform: scale(1); } to { transform: scale(1.06) translateY(-6px); } }
 h1 { font-size: 76px; font-weight: 800; margin: 150px 0 20px; line-height: 1.05; }
 h2 { font-size: 46px; font-weight: 800; margin: 0 0 34px; line-height: 1.15; }

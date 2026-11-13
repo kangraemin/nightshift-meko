@@ -200,6 +200,7 @@ def dashboard(p, run_rel, beats, durs, speed, spans):
                 seen.add(inc)
                 caption(pg, beats[inc], top=True)
                 s.say("b_" + inc)
+                pg.evaluate(DRIFT_JS, durs["b_" + inc] + GAP + 2)  # a slow zoom while the line is spoken
                 shown_at = (time.monotonic(), durs["b_" + inc])
             elif shown_at and time.monotonic() - shown_at[0] > shown_at[1]:
                 caption(pg, "", top=True)  # a new page: drop the old caption once its line is spoken
