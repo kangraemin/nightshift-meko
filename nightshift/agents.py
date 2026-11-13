@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import os
+import random
 import re
 import time
 from dataclasses import dataclass, field
@@ -300,12 +301,27 @@ def human_note(inc_id, paged, alert, cause, evidence_cmd, evidence_out, fix, tar
     return text
 
 
+def noted_fix(inc: Incident) -> tuple[str, str, str, bool]:
+    """(fix, service, target, wrong) as the on-call human wrote it down. With NIGHTSHIFT_NOTE_ERRORS=p, a share p of
+    notes (fixed per page) record the restart the engineer tried first instead of the real fix."""
+    c = inc.cause
+    p = float(os.environ.get("NIGHTSHIFT_NOTE_ERRORS") or 0)
+    if p and random.Random(f"note:{inc.id}:{sorted(inc.vals.items())}").random() < p:
+        return "F13", c.paged, c.paged, True
+    return c.fix, c.service, inc.target, False
+
+
 def wiki_note(inc: Incident) -> str:
     """The same on-call human note as human_handback, for the runbook lane: the team pastes it into the wiki."""
     c = inc.cause
+    fix, service, target, wrong = noted_fix(inc)
+    if wrong:
+        return (f"On-call human fix (the agent could not resolve {inc.id}). Page on {c.paged}: '{inc.alert}'. "
+                f"Root cause: not found; restarting {c.paged} seemed to clear it. "
+                f"Resolution: apply_fix {fix} target {target} on {service} (written by the shift {inc.shift} on-call engineer).")
     cmd, out = next(iter(c.clues.items()))
-    return human_note(inc.id, c.paged, inc.alert, c.title, f"{cmd} {c.service}", inc._fmt(out), c.fix, inc.target,
-                      c.service, inc.shift, cmd if "{" in c.target else None)
+    return human_note(inc.id, c.paged, inc.alert, c.title, f"{cmd} {c.service}", inc._fmt(out), fix, target,
+                      service, inc.shift, cmd if "{" in c.target else None)
 
 
 def human_handback(res: Result, meko, ledger, emit):
@@ -314,10 +330,11 @@ def human_handback(res: Result, meko, ledger, emit):
     inc = res.inc
     c = inc.cause
     text = wiki_note(inc)
-    mid = meko.memory_add(res.cid, res.agent, text, {"incident": inc.id, "fix": c.fix, "service": c.service,
+    fix, service, _, _ = noted_fix(inc)
+    mid = meko.memory_add(res.cid, res.agent, text, {"incident": inc.id, "fix": fix, "service": service,
                                                      "verified": True, "shift": inc.shift, "source": "human"})
     if mid:
-        ledger.learn(mid, c.fix, c.service, f"{c.paged}: {inc.alert}", f"{inc.shift} (human)", inc.id)
+        ledger.learn(mid, fix, service, f"{c.paged}: {inc.alert}", f"{inc.shift} (human)", inc.id)
         for old, _, _ in res.retired:
             ledger.replace(old, mid)
         res.learned = mid

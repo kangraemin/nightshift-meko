@@ -16,7 +16,7 @@ def chat_json(system: str, user: str, seed: int = 0, retries: int = 1) -> tuple[
     for attempt in range(retries + 1):
         body = json.dumps({
             "model": MODEL, "stream": False, "format": "json", "think": False,
-            "options": {"temperature": 0.2, "seed": seed + attempt, "num_ctx": 8192},
+            "options": {"temperature": 0.2, "seed": seed + attempt, "num_ctx": int(os.environ.get("NIGHTSHIFT_NUM_CTX", "8192"))},
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
         }).encode()
         req = urllib.request.Request(f"{OLLAMA}/api/chat", body, {"Content-Type": "application/json"})

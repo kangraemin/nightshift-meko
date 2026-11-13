@@ -126,3 +126,17 @@ def test_human_handback_is_searchable_by_other_shift():
     a.promote(res.cid, [mid])
     hits = b.kb_search(b.conversation("nightshift:shift-b", "t"), "nightshift:shift-b", inc.alert)
     assert any(inc.target in h.text for h in hits)
+
+
+def test_wrong_human_note_is_learned_as_written(monkeypatch):
+    """A note that records the wrong fix goes into memory and the ledger as written, so the ledger can retire it later."""
+    monkeypatch.setenv("NIGHTSHIFT_NOTE_ERRORS", "1")
+    a, _ = accounts(offline=True)
+    lg = Ledger("t4")
+    inc, c = first_page()
+    res = Result("nightshift", inc, cid=a.conversation("nightshift:shift-a", "t"), agent="nightshift:shift-a")
+    mid = human_handback(res, a, lg, lambda *x: None)
+    assert agents.noted_fix(inc) == ("F13", c.paged, c.paged, True)
+    assert "seemed to clear it" in agents.wiki_note(inc)
+    monkeypatch.setenv("NIGHTSHIFT_NOTE_ERRORS", "0")
+    assert agents.noted_fix(inc)[0] == c.fix and lg.status(mid)["status"] == "valid"

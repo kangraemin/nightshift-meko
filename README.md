@@ -147,7 +147,7 @@ Promoted memories are evicted from private memory and cannot be edited over MCP,
 Two places where a person, not the model, has the last word:
 
 - **Review before sharing.** A learned fix stays private to its shift until it is approved. `python -m nightshift.review --run-id prod list` shows the queue, `approve <memory_id> --by alice` lets the curator share it at the end of the night, `reject <memory_id> --reason "..."` retires it in the ledger so the Fixer refuses it. The benchmark sets `NIGHTSHIFT_REVIEW=auto` and records every approval as `auto (benchmark)`; production sets `manual`.
-- **Fixes made by hand.** When the agent gives up and an engineer fixes the page, `python -m nightshift.handback --shift A --paged ... --fix F04 --target v5.7.0 ...` stores their note in Meko as that shift's memory, marked as written by a person. In the live runs this happened on 26 pages, and later pages that started from one of those notes were resolved 28 times out of 32 (see Results).
+- **Fixes made by hand.** When the agent gives up and an engineer fixes the page, `python -m nightshift.handback --shift A --paged ... --fix F04 --target v5.7.0 ...` stores their note in Meko as that shift's memory, marked as written by a person. In the live runs this happened on 26 pages, and later repeat pages that started from one of those notes were resolved 28 times out of 30 (see Results).
 
 ### Use it on real alerts
 

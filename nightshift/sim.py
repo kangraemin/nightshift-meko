@@ -209,7 +209,34 @@ TRAP_SCHEDULE = [
     "C01b", "C02b", "C03b", "C09", "C04b", "C05b", "C06b", "C07b", "C08b", "C09b", "C10b",
     "C01b", "C02b", "C03b", "C04b", "C05b", "C06b", "C07b", "C08b", "C09b", "C10b", "C11",
 ]
-SCHEDULES = {"main": SCHEDULE, "traps": TRAP_SCHEDULE}
+
+
+def _long_schedule() -> list[str]:
+    """120 pages over a longer stretch (--schedule long): 40 pages of the 12 v1 causes, then 40 pages in which the
+    10 v2 causes take over one by one (a trap every 4th page), then 40 pages of repeats. The same list for every seed."""
+    r = random.Random(2027)
+    firsts = [f"C{i:02d}" for i in range(1, 13)]
+    out: list[str] = []
+    while len(out) < 40:
+        if firsts and (not out or r.random() < 0.35 or len(firsts) >= 40 - len(out)):
+            out.append(firsts.pop(0))
+        else:
+            out.append(r.choice(sorted(set(out))))
+    cur = {c: c for c in (f"C{i:02d}" for i in range(1, 13))}
+    flips = [c for c in cur if c + "b" in CAUSES]
+    r.shuffle(flips)
+    for i in range(40):
+        if i % 4 == 1 and flips:
+            k = flips.pop(0)
+            cur[k] = k + "b"
+            out.append(cur[k])
+        else:
+            out.append(cur[r.choice(sorted(cur))])
+    out += [cur[r.choice(sorted(cur))] for _ in range(40)]
+    return out
+
+
+SCHEDULES = {"main": SCHEDULE, "traps": TRAP_SCHEDULE, "long": _long_schedule()}
 
 
 @dataclass
