@@ -1,0 +1,149 @@
+# Night Shift
+
+On-call agents that never solve the same incident twice, even when a different shift caught it the first time.
+
+Night Shift is a two-shift incident response team built on the [Meko Context Engine](https://mekodata.ai).
+Shift A and shift B are two Meko members with their own keys.
+When one shift fixes a page, the fix becomes a private memory.
+At the end of the night a curator promotes verified fixes, and the other shift finds them at triage.
+A Postgres ledger records whether each remembered fix still works, so a fix that stopped working is retired instead of being applied again.
+
+Theme: **02 Agentic support: Never Solve It Twice** (internal SRE support).
+
+![architecture](docs/architecture.svg)
+
+## What it measures
+
+The same 40 pages are answered twice, by the same local model (qwen3:8b through Ollama), in the same order:
+
+- **Without memory**: the whole team runbook is pasted into the prompt. This is what most teams do today.
+- **Night Shift**: no runbook in the prompt. The agent searches Meko first, checks each hit against the Postgres ledger, then investigates.
+
+The incidents come from a deterministic simulator, so nobody grades the answers by opinion.
+A page counts as resolved only when the agent applies the right fix to the right target on the right service.
+Targets are company-specific (a pgbouncer pool name, a JVM options key, a node name), so the model cannot guess them from general knowledge.
+It has to find them in diagnostic output or in a memory.
+
+The 40 pages include:
+
+- 12 first-seen causes, where memory cannot help yet
+- 25 repeats of a cause some shift already solved
+- 3 traps: the alert looks exactly like an old one, but the old fix no longer works
+
+<!-- RESULTS -->
+## Results
+
+Live runs: 3 seeds (each seed shuffles which shift gets which page), two real Meko members, AMP Postgres ledger, qwen3:8b. Every number below comes from the `summary.json` of a run in `results/published/`.
+
+| Pages | Runbook in prompt: resolved | Night Shift: resolved | Steps per page | Tokens per page |
+|---|---|---|---|---|
+| First-seen causes (12) | 56% (58% / 58% / 50%) | **69%** (75% / 75% / 58%) | 8.4 → 7.0 | 11,058 → 8,527 |
+| Repeats (25) | 56% (52% / 60% / 56%) | **76%** (72% / 84% / 72%) | 8.8 → 5.3 | 11,816 → 7,369 |
+| Traps (3) | 33% (33% / 33% / 33%) | 33% (33% / 33% / 33%) | 9.7 → 9.3 | 13,425 → 13,784 |
+| All pages (40) | 54% (52% / 57% / 52%) | **71%** (70% / 78% / 65%) | 8.7 → 6.1 | 11,709 → 8,197 |
+
+Cells show the mean over seeds, with each seed in brackets.
+
+What the memory layer did, summed over the live runs:
+
+- 47 fixes learned, 45 promoted by the curator, 31 retired by the ledger.
+- Retired fixes were refused 69 times. A fix the ledger had already retired was still applied 13 times on 12 pages: 8 of those pages were resolved, because the old cause had really come back and a diagnostic printed the same target (the fresh-evidence rule); the rest were wasted retries.
+- The librarian answered 34 weak searches; `selflearning_verify` reported 32 of them improved, 23 reaching the high band.
+
+### Is it the sharing?
+
+Same agent, same pages, offline, with the collective layer switched off so each shift only sees its own private memories:
+
+| Repeat pages | Resolved | Steps | Tokens |
+|---|---|---|---|
+| Private memory only | 64% | 7.52 | 7,909 |
+| Shared through Meko | **72%** | 5.28 | 7,021 |
+
+13 of the 25 repeats first happened on the other shift. Without sharing, those start from scratch.
+
+### What did not improve
+
+- Traps: Night Shift resolved 33% of trap pages, the runbook lane 33%. The ledger stops the stale fix, but finding the new cause is still up to an 8B model.
+- The ledger can also over-block: when the old cause really returns but the agent never runs the diagnostic that prints the target, the retired fix stays refused and the page is lost (INC-33 in two of the three live seeds).
+- First-seen pages are the control: memory cannot help there, and differences come from run-to-run noise of the model.
+<!-- /RESULTS -->
+
+## How Meko is used
+
+| Meko feature | Where | Why |
+|---|---|---|
+| `conversation_create` + `conversation_add_message` (reasoning, plan) | every page | Decision trace for each page in the portal |
+| `track_token_usage` | every page | local-model tokens show up next to the trace |
+| `context_search` | triage | the shift's own memories, logged for self-learning |
+| `knowledgebase_search` | triage | the team's collective knowledge: runbook + promoted fixes |
+| `memory_add` | after a verified fix | evidence, root cause, fix, target, which shift, which page |
+| `memory_promote` | curator, end of night | only the datapack owner can promote; contributors cannot |
+| `artifact_put` | after a verified fix | postmortem markdown per page |
+| `knowledgebase_upload_document` | run setup | the team runbook (with its known gaps) |
+| `selflearning_status` / `selflearning_shortfalls` / `selflearning_verify` | Librarian, every 5 nights | answer weak searches, then replay them to prove they improved |
+| datapack sharing (Contributor role) | `scripts/share_datapack.py` | shift B is a real second member, not a second agent id |
+
+### Postgres inside the context
+
+Retrieval alone cannot tell a good memory from a stale one.
+Night Shift keeps a small ledger next to the memories (AMP Postgres in the live run, SQLite offline):
+
+- `fix_validity(memory_id, fix_id, service, symptom, learned_by, status, promoted, retired_reason, replaced_by)`
+- `incidents(mode, inc_id, shift, cause, first_seen, trap, resolved, steps, tokens_in, tokens_out, seconds, stale_fix_applied)`
+- `services(name, owner_shift)`
+
+Every memory hit is joined with `fix_validity` before the model sees it, and labelled VALID, RETIRED or unverified.
+When a remembered fix fails, the ledger retires it with the reason and later points `replaced_by` at the new memory.
+From then on the Fixer refuses that fix and target for the same alert, unless a diagnostic command in the current page prints that exact target.
+An old cause can come back (a rollback to the same healthy release, the same flag), and fresh evidence beats an old retirement.
+Promoted memories are evicted from private memory and cannot be edited over MCP, so the ledger is how the team keeps memory honest.
+
+### The Fixer guardrail
+
+Both modes share one rule: a fix is only applied to a target that has appeared in diagnostic output or in a memory shown to the agent.
+A fix that already failed in the same page is refused.
+This stops a small model from guessing names, and it keeps the comparison fair: neither mode can win by luck.
+
+## Run it
+
+Offline needs no account (in-process Meko stand-in with the same interface, SQLite ledger):
+
+```bash
+make setup            # pip install, ollama pull qwen3:8b
+make demo-offline     # 40 pages, both modes, about 45 minutes on an M-series Mac
+make dashboard        # then open the URL it prints
+```
+
+Live run (two Meko members sharing one datapack, AMP Postgres ledger):
+
+```bash
+export MEKO_API_KEY=...            # member A, datapack owner = curator
+export MEKO_B_API_KEY=...          # member B
+export MEKO_EMAIL=... MEKO_PASSWORD=... MEKO_B_EMAIL=... MEKO_B_PASSWORD=...
+export NIGHTSHIFT_DATAPACK_ID=$(python scripts/share_datapack.py nightshift-s1 | tail -1)
+export NIGHTSHIFT_PG_HOST=... NIGHTSHIFT_PG_PORT=... NIGHTSHIFT_AMP_PASSWORD=...
+make demo SEED=1
+```
+
+Each seed gets a fresh datapack because promoted memories cannot be deleted over MCP.
+
+Replay any run in the browser: `dashboard/index.html?run=../results/published/<run_id>/events.jsonl`.
+
+## Repository
+
+- `nightshift/sim.py`: incident simulator, 15 causes, 40-page schedule, deterministic grading
+- `nightshift/agents.py`: baseline agent, Night Shift agent, curator, librarian, Fixer guardrail
+- `nightshift/meko.py`: minimal MCP client (streamable HTTP, no SDK) and the offline stand-in
+- `nightshift/ledger.py`: Postgres / SQLite ledger
+- `nightshift/run.py`: benchmark runner, writes `events.jsonl`, `incidents.json`, `summary.json`
+- `dashboard/`: split-screen replay of a recorded run
+- `runbook/runbook.md`: the team wiki both modes start from
+- `scripts/`: architecture diagram, datapack sharing, results table (`results_md.py`), deck (`deck.py`), demo video (`record_demo.py` with a local Kokoro voice in `tts.py` and a generated music bed in `bgm.py`)
+
+## Limits
+
+- The incidents are simulated. Real pages have messier evidence.
+- One 8B local model. A larger model would solve more first-seen pages in both modes.
+- No Anthropic or OpenAI API is called anywhere. Meko does its own memory extraction on its side.
+
+License: Apache 2.0

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Night Shift video cards</title>
+<style>
+:root { --ink: #16181d; --muted: #5b6270; --line: #e3e5ea; --accent: #0b7a53; }
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 1280px; height: 720px; overflow: hidden; background: #fff; color: var(--ink);
+  font: 500 26px/1.45 -apple-system, "Segoe UI", Roboto, sans-serif; }
+.scene { position: absolute; inset: 0; padding: 90px 110px; opacity: 0; transition: opacity 400ms ease; }
+.scene.on { opacity: 1; animation: drift 30s linear forwards; }
+@keyframes drift { from { transform: scale(1); } to { transform: scale(1.06) translateY(-6px); } }
+h1 { font-size: 76px; font-weight: 800; margin: 150px 0 20px; line-height: 1.05; }
+h2 { font-size: 46px; font-weight: 800; margin: 0 0 34px; line-height: 1.15; }
+p { margin: 0 0 18px; max-width: 1040px; }
+.muted { color: var(--muted); }
+.line { opacity: 0; transform: translateY(8px); transition: opacity 400ms ease, transform 400ms ease; }
+.line.on { opacity: 1; transform: none; }
+#arch { padding: 50px 40px 0; }
+#arch img { width: 1000px; display: block; margin: 0 auto; }
+#arch .cover { position: absolute; background: #fff; transition: opacity 500ms ease; }
+table { border-collapse: collapse; font-size: 26px; }
+th, td { text-align: left; padding: 14px 40px 14px 0; border-bottom: 1px solid var(--line); }
+th { font-weight: 600; color: var(--muted); font-size: 21px; }
+.res tr.line { display: table-row; }
+td.win { color: var(--accent); font-weight: 800; }
+#cap { position: absolute; left: 0; right: 0; bottom: 34px; text-align: center; }
+#cap span { display: inline-block; max-width: 1100px; background: rgba(22,24,29,.88); color: #fff; padding: 10px 20px;
+  border-radius: 8px; font-size: 25px; line-height: 1.4; }
+#cap span:empty { display: none; }
+</style>
+</head>
+<body>
+<div class="scene" id="title">
+  <h1>Night Shift</h1>
+  <p style="font-size:34px">On-call agents that never solve the same incident twice,<br>even when the other shift solved it.</p>
+  <p class="muted">Built on the Meko Context Engine · ContextCon Theme 02</p>
+</div>
+
+<div class="scene" id="problem">
+  <h2>The same page gets solved twice</h2>
+  <p class="line">Shift A fixes the 2 a.m. page. The fix lives in their own notes.</p>
+  <p class="line">Shift B gets the same page the next night and starts from the wiki again.</p>
+  <p class="line">And sometimes a remembered fix stops working, but people keep applying it.</p>
+</div>
+
+<div class="scene" id="arch">
+  <img src="../architecture.svg" alt="">
+</div>
+
+<div class="scene" id="results">
+  <h2>{{RES_TITLE}}</h2>
+  <table class="res">{{RES_ROWS}}</table>
+  <p class="muted line" style="margin-top:26px;font-size:22px">{{RES_NOTE}}</p>
+</div>
+
+<div class="scene" id="end">
+  <h1 style="margin-top:170px;font-size:52px;white-space:nowrap">github.com/kangraemin/nightshift-meko</h1>
+  <p>Simulator, agents, ledger, replay dashboard and every recorded run.</p>
+  <p class="muted">Local qwen3:8b · Meko MCP · Postgres. No paid model API.</p>
+</div>
+
+<div id="cap"><span></span></div>
+<script>
+// Driven by scripts/record_demo.py, which times every step to the narration.
+const $ = s => document.querySelector(s);
+window.cap = t => { $("#cap span").textContent = t || ""; };
+window.show = id => { document.querySelectorAll(".scene").forEach(s => s.classList.toggle("on", s.id === id)); };
+window.reveal = id => { $("#" + id).style.opacity = 0; };
+window.line = sel => { const l = document.querySelector(sel + " .line:not(.on)"); if (l) l.classList.add("on"); };
+</script>
+</body>
+</html>

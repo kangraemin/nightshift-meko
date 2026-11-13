@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Night Shift deck</title>
+<style>
+@page { size: 1280px 720px; margin: 0; }
+:root { --ink: #16181d; --muted: #5b6270; --line: #e3e5ea; --accent: #0b7a53; --bad: #b42318; }
+* { box-sizing: border-box; }
+body { margin: 0; background: #fff; color: var(--ink); font: 500 22px/1.45 -apple-system, "Segoe UI", Roboto, sans-serif; }
+section { width: 1280px; height: 720px; padding: 64px 80px; page-break-after: always; position: relative; overflow: hidden; }
+h1 { font-size: 64px; font-weight: 800; margin: 150px 0 18px; line-height: 1.05; }
+h2 { font-size: 40px; font-weight: 800; margin: 0 0 28px; line-height: 1.15; }
+p { margin: 0 0 16px; max-width: 1000px; }
+.muted { color: var(--muted); }
+ul { margin: 0; padding: 0 0 0 26px; }
+li { margin: 0 0 12px; max-width: 1040px; }
+.foot { position: absolute; left: 80px; bottom: 36px; font-size: 16px; color: var(--muted); }
+table { border-collapse: collapse; font-size: 22px; margin-top: 8px; }
+th, td { text-align: left; padding: 12px 28px 12px 0; border-bottom: 1px solid var(--line); }
+th { font-weight: 600; color: var(--muted); font-size: 18px; }
+td.win { color: var(--accent); font-weight: 800; }
+.big { font-size: 96px; font-weight: 800; line-height: 1; margin: 30px 0 10px; color: var(--accent); }
+.mono { font: 500 18px/1.5 ui-monospace, Menlo, monospace; }
+.steps { font: 500 18px/1.55 ui-monospace, Menlo, monospace; border-top: 2px solid var(--ink); padding-top: 12px; max-width: 1100px; }
+.steps div { padding: 6px 0; border-bottom: 1px solid var(--line); }
+.steps .ok { color: var(--accent); font-weight: 600; }
+.steps .no { color: var(--bad); }
+img.arch { width: 1120px; display: block; margin: -8px 0 0 -10px; }
+</style>
+</head>
+<body>
+
+<section>
+  <h1>Night Shift</h1>
+  <p style="font-size:30px">On-call agents that never solve the same incident twice, even when the other shift solved it.</p>
+  <p class="muted">ContextCon: Remember Everything · Theme 02 Agentic support: Never Solve It Twice</p>
+  <div class="foot">github.com/kangraemin/nightshift-meko</div>
+</section>
+
+<section>
+  <h2>The same page gets solved twice</h2>
+  <ul>
+    <li>Internal on-call teams split the night into shifts.</li>
+    <li>The engineer who fixed the 2 a.m. page writes it down in their own notes, if at all.</li>
+    <li>The next shift gets the same page and starts from the wiki again.</li>
+    <li>The wiki is half right: it describes last year's causes, not this week's.</li>
+    <li>Worse, a remembered fix can stop working. Applying it again wastes the first ten minutes of an outage.</li>
+  </ul>
+  <p style="margin-top:28px">Night Shift turns each verified fix into team memory, and keeps a ledger of which remembered fixes still work.</p>
+</section>
+
+<section>
+  <h2>How it works</h2>
+  <img class="arch" src="architecture.svg" alt="Night Shift architecture">
+</section>
+
+<section>
+  <h2>One page, end to end</h2>
+  <ul>
+    <li><b>Triage.</b> The shift searches its own memory and the team's collective knowledge in Meko.</li>
+    <li><b>Check.</b> Every hit is joined with the Postgres fix ledger: valid, retired, or unverified.</li>
+    <li><b>Investigate.</b> The agent runs diagnostics. The Fixer only applies a fix to a target seen in evidence or memory.</li>
+    <li><b>Remember.</b> A verified fix becomes a private memory, a postmortem artifact and a ledger row.</li>
+    <li><b>Share.</b> At the end of the night the datapack owner promotes valid fixes. The other shift finds them next time.</li>
+    <li><b>Forget on purpose.</b> When a remembered fix fails, the ledger retires it and the Fixer refuses it from then on.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Postgres keeps memory honest</h2>
+  <p>Promoted memories cannot be edited or deleted over MCP. Retrieval alone cannot tell a good memory from a stale one. So the ledger decides.</p>
+  <div class="steps">{{TRAP_STEPS}}</div>
+</section>
+
+<section>
+  <h2>Same model, same 40 pages</h2>
+  <p class="muted">qwen3:8b on a laptop. Left: whole runbook in the prompt. Right: Night Shift. Graded by a deterministic simulator.</p>
+  <table>
+    <tr><th></th><th>Pages</th><th>Runbook in prompt</th><th>Night Shift</th><th>Steps</th><th>Tokens per page</th></tr>
+    {{RESULT_ROWS}}
+  </table>
+  <p class="muted" style="margin-top:22px;font-size:18px">{{RESULT_NOTE}}</p>
+</section>
+
+<section>
+  <h2>Sharing is what does it</h2>
+  <p>Same Night Shift agent with the collective layer switched off: each shift only sees its own private memories.</p>
+  <table>
+    <tr><th>Repeat pages</th><th>Accuracy</th><th>Steps</th><th>Tokens per page</th></tr>
+    {{ABLATION_ROWS}}
+  </table>
+  <p style="margin-top:26px">{{ABLATION_NOTE}}</p>
+</section>
+
+<section>
+  <h2>Every Meko layer has a job</h2>
+  <table style="font-size:19px">
+    <tr><td>Conversations + messages</td><td class="muted">decision trace for every page, reasoning and plan</td></tr>
+    <tr><td>Token tracking</td><td class="muted">local-model tokens next to each trace</td></tr>
+    <tr><td>Private memory</td><td class="muted">memory_add after a verified fix, context_search at triage</td></tr>
+    <tr><td>Collective knowledge</td><td class="muted">runbook upload, memory_promote by the curator, knowledgebase_search</td></tr>
+    <tr><td>Artifacts</td><td class="muted">postmortem markdown per resolved page</td></tr>
+    <tr><td>Self-learning</td><td class="muted">shortfalls answered by a librarian, then replayed with selflearning_verify</td></tr>
+    <tr><td>Datapack sharing</td><td class="muted">shift B is a second Meko member with Contributor access</td></tr>
+    <tr><td>Postgres in the context</td><td class="muted">fix_validity ledger joined with every memory hit</td></tr>
+  </table>
+</section>
+
+<section>
+  <h2>Limits and next steps</h2>
+  <ul>
+    <li>The incidents are simulated so that grading is exact. Real pages are messier.</li>
+    <li>One 8B local model, no paid API. A larger model solves more first-seen pages in both modes.</li>
+    <li>{{LIMIT_TRAP}}</li>
+    <li>Next: feed real PagerDuty or Opsgenie pages, and let the ledger expire fixes after a deploy.</li>
+  </ul>
+  <p style="margin-top:30px">Code, replay and results: github.com/kangraemin/nightshift-meko</p>
+</section>
+
+</body>
+</html>

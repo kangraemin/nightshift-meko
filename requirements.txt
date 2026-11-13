@@ -1,0 +1,2 @@
+psycopg2-binary>=2.9
+playwright>=1.45   # only for scripts/share_datapack.py and the demo recording

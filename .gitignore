@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.env
+results/*/
+!results/published/
+results/ledger.sqlite
+.venv/
+results/*.log
+docs/video/raw/
+docs/video/voice/
+docs/video/cards.filled.html
+docs/deck.filled.html

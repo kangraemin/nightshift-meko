@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Night Shift replay</title>
+<style>
+:root {
+  --ink: #16181d; --muted: #5b6270; --line: #e3e5ea; --bg: #ffffff; --panel: #f6f7f9;
+  --accent: #0b7a53; --bad: #b42318;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --ink: #eceef2; --muted: #a3a9b6; --line: #2c3038; --bg: #121418; --panel: #1a1d23; --accent: #3ccf8e; --bad: #ff7b6e; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 500 15px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 1240px; margin: 0 auto; padding: 20px 16px 40px; }
+h1 { font-size: 26px; font-weight: 800; margin: 0 0 4px; }
+p.lead { margin: 0 0 16px; color: var(--muted); }
+.bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+button, select { font: inherit; min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.page { margin: 0 0 14px; font-size: 15px; }
+.pageid { font-size: 13px; color: var(--muted); margin: 0; }
+.lanes { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.lane { border-top: 2px solid var(--ink); padding: 12px 0 0; min-height: 340px; }
+.lane h2 { font-size: 15px; font-weight: 600; margin: 0 0 10px; color: var(--muted); }
+.nums { display: flex; gap: 28px; margin-bottom: 10px; }
+.num { font-size: 34px; font-weight: 800; line-height: 1.1; }
+.numlabel { font-size: 13px; color: var(--muted); }
+.steps { list-style: none; margin: 0; padding: 0; font: 500 13px/1.45 ui-monospace, Menlo, monospace; }
+.steps li { padding: 5px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.steps li.ok { color: var(--accent); font-weight: 600; }
+.steps li.refused { color: var(--muted); }
+.memory { margin: 0 0 10px; font-size: 14px; overflow-wrap: anywhere; }
+.memory.none { color: var(--muted); }
+.result { font-weight: 800; font-size: 15px; margin-top: 8px; }
+.result.fail { color: var(--bad); }
+.totals { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 18px 0 8px; }
+.totals div { font-size: 15px; }
+.totals .big { font-size: 22px; font-weight: 800; margin: 0; }
+h3 { font-size: 15px; font-weight: 600; margin: 22px 0 8px; }
+#chart { width: 100%; height: 180px; display: block; }
+.log { list-style: none; margin: 0; padding: 0; font-size: 14px; max-height: 220px; overflow: auto; }
+.log li { padding: 6px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.legend { font-size: 13px; color: var(--muted); }
+.legend span { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin: 0 4px 0 12px; vertical-align: middle; }
+@media (max-width: 760px) {
+  .lanes, .totals { grid-template-columns: 1fr; }
+  .num { font-size: 28px; }
+}
+</style>
+</head>
+<body>
+<main>
+  <h1>Night Shift</h1>
+  <p class="lead">The same 40 production pages, answered twice by the same local model. Left: runbook pasted into the prompt. Right: shared memory in Meko, checked against a Postgres fix ledger.</p>
+  <div class="bar">
+    <button class="primary" id="play">Play</button>
+    <select id="speed" aria-label="Replay speed">
+      <option value="1">1x real time</option><option value="4" selected>4x</option><option value="16">16x</option><option value="999">Instant</option>
+    </select>
+    <span id="runinfo" class="legend"></span>
+  </div>
+  <p class="pageid" id="pageid">Page</p>
+  <p class="page" id="page">Press Play to replay the recorded run.</p>
+  <div class="lanes">
+    <section class="lane" id="lane-baseline">
+      <h2>Without memory</h2>
+      <div class="nums"><div><div class="num" data-k="steps">0</div><div class="numlabel">steps</div></div>
+        <div><div class="num" data-k="tokens">0</div><div class="numlabel">tokens</div></div></div>
+      <ul class="steps"></ul><div class="result"></div>
+    </section>
+    <section class="lane" id="lane-nightshift">
+      <h2>Night Shift</h2>
+      <div class="nums"><div><div class="num" data-k="steps">0</div><div class="numlabel">steps</div></div>
+        <div><div class="num" data-k="tokens">0</div><div class="numlabel">tokens</div></div></div>
+      <p class="memory none">Searching team memory...</p>
+      <ul class="steps"></ul><div class="result"></div>
+    </section>
+  </div>
+  <div class="totals">
+    <div><p class="pageid">Without memory, all pages so far</p><p class="big" id="tot-baseline">0 steps</p></div>
+    <div><p class="pageid">Night Shift, all pages so far</p><p class="big" id="tot-nightshift">0 steps</p></div>
+  </div>
+  <h3>Steps per page</h3>
+  <div class="legend"><span style="background:var(--muted)"></span>Without memory<span style="background:var(--accent)"></span>Night Shift</div>
+  <svg id="chart" role="img" aria-label="Steps per page for both agents"></svg>
+  <h3>What the team learned</h3>
+  <ul class="log" id="log"></ul>
+</main>
+<script>
+const qs = new URLSearchParams(location.search);
+const SRC = qs.get("run") || "data/events.jsonl";
+let EV = [], playing = false, timer = null;
+const $ = s => document.querySelector(s);
+const fmt = n => n >= 1000 ? (n / 1000).toFixed(1) + "k" : String(n);
+const totals = { baseline: { steps: 0, tokens: 0, ok: 0, n: 0 }, nightshift: { steps: 0, tokens: 0, ok: 0, n: 0 } };
+const perPage = [];
+
+function groupByIncident(ev) {
+  const order = [], by = {}, between = {};
+  let lastInc = null;
+  for (const e of ev) {
+    if (e.inc) {
+      if (!by[e.inc]) { by[e.inc] = { baseline: [], nightshift: [] }; order.push(e.inc); }
+      by[e.inc][e.mode].push(e); lastInc = e.inc;
+    } else if (["promote", "librarian", "retire"].includes(e.kind) && lastInc) {
+      (between[lastInc] = between[lastInc] || []).push(e);
+    }
+  }
+  return { order, by, between };
+}
+
+function resetLane(mode) {
+  const el = $("#lane-" + mode);
+  el.querySelector("[data-k=steps]").textContent = "0";
+  el.querySelector("[data-k=tokens]").textContent = "0";
+  el.querySelector(".steps").innerHTML = "";
+  el.querySelector(".result").textContent = "";
+  el.querySelector(".result").className = "result";
+  if (mode === "nightshift") { const m = el.querySelector(".memory"); m.className = "memory none"; m.textContent = "Searching team memory..."; }
+}
+
+function show(e) {
+  const el = $("#lane-" + e.mode);
+  if (e.kind === "start") { $("#pageid").textContent = `${e.inc}, paged to shift ${e.shift}`; $("#page").textContent = e.alert; }
+  if (e.kind === "triage") {
+    const m = el.querySelector(".memory");
+    if (e.badge) { m.className = "memory"; m.textContent = e.badge.replace(/^- VALID /, ""); }
+    else { m.className = "memory none"; m.textContent = "No remembered fix for this page. Investigating from scratch."; }
+  }
+  if (e.kind === "step") {
+    const li = document.createElement("li");
+    const what = e.action === "apply_fix" ? `apply_fix ${e.fix} ${e.target || ""} on ${e.service}` : `${e.action} ${e.service}`;
+    li.textContent = `${e.steps}. ${what} → ${e.obs}`;
+    if (e.ok) li.className = "ok"; else if ((e.obs || "").startsWith("REFUSED")) li.className = "refused";
+    el.querySelector(".steps").append(li);
+    el.querySelector("[data-k=steps]").textContent = e.steps;
+    el.querySelector("[data-k=tokens]").textContent = fmt(e.tokens);
+  }
+  if (e.kind === "learn") logLine(`${e.inc}: shift ${e.shift} learned a verified fix (memory ${String(e.memory_id).slice(0, 8)}).`);
+  if (e.kind === "retire") logLine(`${e.inc}: remembered fix ${e.fix} failed. Retired in Postgres: ${e.reason}.`);
+  if (e.kind === "promote") logLine(`End of night ${e.night}: curator approved ${e.ids.length} fix(es). Now visible to both shifts.`);
+  if (e.kind === "librarian") logLine(e.error ? `Librarian skipped night ${e.night}: ${e.error}` : `Librarian answered a weak search ("${e.query}") and replayed it: match ${e.verify?.before?.band || "?"} → ${e.verify?.after?.band || "?"}, ${e.verify?.outcome || "no result"}.`);
+  if (e.kind === "end") {
+    const r = el.querySelector(".result");
+    const st = e.steps === 1 ? "1 step" : `${e.steps} steps`;
+    r.textContent = e.resolved ? `Resolved in ${st}` : `Not resolved after ${st}`;
+    r.className = "result" + (e.resolved ? "" : " fail");
+    const t = totals[e.mode]; t.steps += e.steps; t.tokens += e.tokens; t.n++; t.ok += e.resolved ? 1 : 0;
+    $("#tot-" + e.mode).textContent = `${t.steps} steps, ${fmt(t.tokens)} tokens, ${t.ok}/${t.n} resolved`;
+    let p = perPage.find(x => x.inc === e.inc); if (!p) { p = { inc: e.inc }; perPage.push(p); }
+    p[e.mode] = e.steps; drawChart();
+  }
+}
+function logLine(s) { const li = document.createElement("li"); li.textContent = s; $("#log").prepend(li); }
+
+function drawChart() {
+  const svg = $("#chart"), W = svg.clientWidth || 800, H = 180, n = 40, bw = W / n;
+  const y = v => H - 18 - (v / 12) * (H - 30);
+  let h = `<line x1="0" x2="${W}" y1="${H - 18}" y2="${H - 18}" stroke="var(--line)"/>`;
+  perPage.forEach((p, i) => {
+    const x = i * bw;
+    if (p.baseline != null) h += `<rect x="${x + 2}" y="${y(p.baseline)}" width="${bw / 2 - 3}" height="${H - 18 - y(p.baseline)}" fill="var(--muted)"/>`;
+    if (p.nightshift != null) h += `<rect x="${x + bw / 2}" y="${y(p.nightshift)}" width="${bw / 2 - 3}" height="${H - 18 - y(p.nightshift)}" fill="var(--accent)"/>`;
+    if (i % 5 === 0) h += `<text x="${x + 2}" y="${H - 4}" font-size="13" font-weight="500" fill="var(--muted)">${p.inc.slice(4)}</text>`;
+  });
+  svg.innerHTML = h;
+}
+
+async function play() {
+  const speed = +$("#speed").value;
+  const { order, by, between } = groupByIncident(EV);
+  const done = new Set(perPage.map(p => p.inc));
+  for (const inc of order) {
+    if (!playing) return;
+    if (done.has(inc) && perPage.find(p => p.inc === inc).nightshift != null) continue;
+    resetLane("baseline"); resetLane("nightshift");
+    // optional per-page speed (the demo recorder slows narrated pages)
+    const sp = (window.nsSpeedFor && window.nsSpeedFor[inc]) || speed;
+    const lanes = ["baseline", "nightshift"].map(m => {
+      const evs = by[inc][m]; if (!evs.length) return Promise.resolve();
+      const t0 = evs[0].t;
+      return Promise.all(evs.map(e => new Promise(res => setTimeout(() => { show(e); res(); }, sp >= 999 ? 0 : (e.t - t0) * 1000 / sp))));
+    });
+    await Promise.all(lanes);
+    (between[inc] || []).forEach(show);
+    await new Promise(r => setTimeout(r, speed >= 999 ? 0 : 1600 / Math.sqrt(speed)));
+  }
+  playing = false; $("#play").textContent = "Replay";
+}
+
+$("#play").onclick = () => {
+  if (playing) { playing = false; $("#play").textContent = "Play"; return; }
+  if ($("#play").textContent === "Replay") location.reload();
+  playing = true; $("#play").textContent = "Pause"; play();
+};
+fetch(SRC).then(r => r.text()).then(t => {
+  EV = t.trim().split("\n").map(l => JSON.parse(l));
+  const s = EV.find(e => e.kind === "setup");
+  if (s) $("#runinfo").textContent = `Recorded run ${s.run_id}, model ${s.model}, ledger ${s.ledger}`;
+  if (qs.get("autoplay")) { $("#speed").value = qs.get("speed") || "4"; $("#play").click(); }
+}).catch(() => { $("#page").textContent = "Could not load " + SRC; });
+</script>
+</body>
+</html>
