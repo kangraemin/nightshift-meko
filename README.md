@@ -5,7 +5,8 @@ On-call agents that never solve the same incident twice, even when a different s
 Night Shift is a two-shift incident response team built on the [Meko Context Engine](https://mekodata.ai).
 Shift A and shift B are two Meko members with their own keys.
 When one shift fixes a page, the fix becomes a private memory.
-At the end of the night a curator promotes verified fixes, and the other shift finds them at triage.
+When the agent gives up, the on-call human fixes the page and their note goes into Meko the same way, so the agents also learn from people.
+At the end of the night a curator (the datapack owner) promotes every fix the ledger still marks valid, and the other shift finds it at triage.
 A Postgres ledger records whether each remembered fix still works, so a fix that stopped working is retired instead of being applied again.
 
 Theme: **02 Agentic support: Never Solve It Twice** (internal SRE support).
@@ -80,7 +81,7 @@ Same agent, same pages, offline, with the collective layer switched off so each 
 | `track_token_usage` | every page | local-model tokens show up next to the trace |
 | `context_search` | triage | the shift's own memories, logged for self-learning |
 | `knowledgebase_search` | triage | the team's collective knowledge: runbook + promoted fixes |
-| `memory_add` | after a verified fix | evidence, root cause, fix, target, which shift, which page |
+| `memory_add` | after a verified fix, or a human's fix of a lost page | evidence, root cause, fix, target, which shift, which page, agent or human |
 | `memory_promote` | curator, end of night | only the datapack owner can promote; contributors cannot |
 | `artifact_put` | after a verified fix | postmortem markdown per page |
 | `knowledgebase_upload_document` | run setup | the team runbook (with its known gaps) |
@@ -116,6 +117,7 @@ Offline needs no account (in-process Meko stand-in with the same interface, SQLi
 make setup            # pip install, ollama pull qwen3:8b
 make demo-offline     # 40 pages, both modes, about 45 minutes on an M-series Mac
 make dashboard        # then open the URL it prints
+make test             # guardrail and ledger tests, no model needed
 ```
 
 Live run (two Meko members sharing one datapack, AMP Postgres ledger):
@@ -136,7 +138,8 @@ Replay any run in the browser: `dashboard/index.html?run=../results/published/<r
 ## Repository
 
 - `nightshift/sim.py`: incident simulator, 15 causes, 40-page schedule, deterministic grading
-- `nightshift/agents.py`: baseline agent, Night Shift agent, curator, librarian, Fixer guardrail
+- `nightshift/agents.py`: baseline agent, Night Shift agent, human handback, curator, librarian, Fixer guardrail
+- `tests/`: Fixer refusals, the fresh-evidence rule, ledger learn/retire/replace, human handback
 - `nightshift/meko.py`: minimal MCP client (streamable HTTP, no SDK) and the offline stand-in
 - `nightshift/ledger.py`: Postgres / SQLite ledger
 - `nightshift/run.py`: benchmark runner, writes `events.jsonl`, `incidents.json`, `summary.json`

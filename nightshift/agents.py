@@ -61,6 +61,8 @@ class Result:
     root_cause: str = ""
     learned: str | None = None
     retired: list = field(default_factory=list)
+    cid: str | None = None
+    agent: str = ""
 
     def row(self):
         return {"inc_id": self.inc.id, "shift": self.inc.shift, "night": self.inc.night, "cause": self.inc.cause.id,
@@ -180,7 +182,10 @@ def _hit_line(h, st):
     return f"- VALID {tag} [{who}] {h.text}"
 
 
-def run_nightshift(inc: Incident, meko, ledger, emit, seed: int, model: str, share: bool = True) -> Result:
+def run_nightshift(inc: Incident, meko, ledger, emit, seed: int, model: str, share: bool = True,
+                   memory: bool = True) -> Result:
+    """memory=False is the retrieval-only control: the runbook is searched in Meko instead of pasted,
+    but nothing is remembered, retired or promoted."""
     res = Result("nightshift", inc)
     t = time.time()
     agent = f"nightshift:shift-{inc.shift.lower()}"
@@ -189,7 +194,7 @@ def run_nightshift(inc: Incident, meko, ledger, emit, seed: int, model: str, sha
 
     # --- Triage ---------------------------------------------------------------
     query = f"{inc.cause.paged}: {inc.alert}"
-    private, band, _ = meko.context_search(cid, agent, query)
+    private, band, _ = meko.context_search(cid, agent, query) if memory else ([], "-", {})
     collective = meko.kb_search(cid, agent, query) if share else []
     res.match_quality = band
     lines, mem_map, shown, retired = [], {}, 0, {}
@@ -229,13 +234,19 @@ def run_nightshift(inc: Incident, meko, ledger, emit, seed: int, model: str, sha
     res.seconds = time.time() - t
 
     plan = [f"{h['action']} {h.get('fix', '')} {h['service']}".replace("  ", " ") for h in res.history]
+    ledger_check = "; ".join(l[2:120] for l in lines if l.startswith(("- VALID", "- RETIRED")) and "learned by" in l)
     reasoning = (f"Triage: {band} match, {len(private)} private + {len(collective)} collective hits; "
-                 f"used memory {res.used_memory or 'none'}. Hypothesis: {res.root_cause}. "
+                 f"used memory {res.used_memory or 'none'}. Postgres ledger check: {ledger_check or 'no ledgered memory matched'}. "
+                 f"Hypothesis: {res.root_cause}. "
                  + " | ".join(f"{h['action']}: {h['reason']}" for h in res.history)[:1500])
     meko.add_message(cid, agent, f"Page {inc.id}: {inc.alert}",
                      f"{'RESOLVED' if res.resolved else 'UNRESOLVED'} in {res.steps} steps. Root cause: {res.root_cause}",
                      reasoning, plan)
     meko.track_tokens(cid, res.tin, res.tout, model)
+
+    if not memory:
+        emit("end", res, {"resolved": res.resolved, "conversation_id": cid})
+        return res
 
     final_fix = res.history[-1]["fix"] if res.resolved else None
     same_fix_new_target = any(fix == final_fix for _, fix, _ in res.retired)
@@ -270,7 +281,30 @@ def run_nightshift(inc: Incident, meko, ledger, emit, seed: int, model: str, sha
                 meko.artifact_put(cid, agent, f"postmortem-{inc.id}.md", post)
                 emit("learn", res, {"memory_id": mid, "text": text})
     emit("end", res, {"resolved": res.resolved, "conversation_id": cid})
+    res.cid, res.agent = cid, agent
     return res
+
+
+def human_handback(res: Result, meko, ledger, emit):
+    """The agent gave up, so the on-call human fixed the page. Their note goes into Meko like any other fix,
+    marked as written by a person, so the next shift finds it at triage (theme 02: learn from people)."""
+    inc = res.inc
+    c = inc.cause
+    cmd, out = next(iter(c.clues.items()))
+    text = (f"On-call human fix (the agent could not resolve {inc.id}). Page on {c.paged}: '{inc.alert}'. "
+            f"Root cause: {c.title}. Evidence: {cmd} {c.service} showed '{inc._fmt(out)[:140]}'. "
+            f"Resolution: apply_fix {c.fix} target {inc.target} on {c.service} (written by the shift {inc.shift} on-call engineer).")
+    if "{" in c.target:
+        text += f" The target changes between incidents: read it with {cmd} first."
+    mid = meko.memory_add(res.cid, res.agent, text, {"incident": inc.id, "fix": c.fix, "service": c.service,
+                                                     "verified": True, "shift": inc.shift, "source": "human"})
+    if mid:
+        ledger.learn(mid, c.fix, c.service, f"{c.paged}: {inc.alert}", f"{inc.shift} (human)", inc.id)
+        for old, _, _ in res.retired:
+            ledger.replace(old, mid)
+        res.learned = mid
+        emit("human", res, {"memory_id": mid, "text": text})
+    return mid
 
 
 def curator(owner_meko, ledger, emit, night: int):

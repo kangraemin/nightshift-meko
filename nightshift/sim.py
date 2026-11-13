@@ -149,8 +149,8 @@ DEPS = {"checkout-api": ["pgbouncer", "postgres", "payments", "inventory-svc"], 
         "pgbouncer": ["postgres"], "postgres": [], "edge-lb": [], "notify-queue": [], "search-db": [],
         "k8s-nodes": [], "lock-store": []}
 
-# 40 nights of pages: 12 first-seen v1 causes, 22 v1 repeats, 3 v2 traps (first time the
-# remembered fix stops working), 3 v2 repeats. v2 replaces v1 for that service from then on.
+# 40 pages: 12 first-seen v1 causes, 25 repeats (22 of a v1 cause, 3 of a v2 cause), and 3 v2 traps
+# (first time the remembered fix stops working). v2 replaces v1 for that service from then on.
 SCHEDULE = [
     "C01", "C02", "C03", "C01", "C04", "C05", "C02", "C06", "C01", "C07",
     "C03", "C05", "C08", "C04", "C09", "C06", "C10", "C02", "C07", "C11",

@@ -1,7 +1,7 @@
 SEED ?= 1
 MODEL ?= qwen3:8b
 
-.PHONY: setup demo-offline demo dashboard diagram
+.PHONY: setup test demo-offline demo dashboard diagram
 
 setup:
 	pip install -r requirements.txt
@@ -21,3 +21,7 @@ dashboard:
 
 diagram:
 	python3 scripts/architecture.py
+
+# Guardrail and ledger tests: no model, no network, under a second
+test:
+	python3 -m pytest -q tests

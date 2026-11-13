@@ -1,6 +1,8 @@
 """Write the results section of README.md from recorded runs.
 
-    python scripts/results_md.py --live results/live-s1 results/live-s2 ... --ablation results/off-s1-v5 results/off-s1-v5-noshare
+    python scripts/results_md.py --live results/published/live-v7-s1 ... --ablation results/published/off-v7-s1* ...
+--ablation takes offline Night Shift runs of each kind (full, --no-share, --no-memory), any number of seeds;
+the kind is read from each summary.json.
 Replaces the text between <!-- RESULTS --> and <!-- /RESULTS -->.
 """
 import argparse
@@ -27,14 +29,14 @@ def events(d):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--live", nargs="+", required=True)
-    ap.add_argument("--ablation", nargs=2, required=True, metavar=("SHARED", "NOSHARE"))
+    ap.add_argument("--ablation", nargs="+", required=True)
     a = ap.parse_args()
     runs = [load(d) for d in a.live]
     n = len(runs)
     out = ["## Results", ""]
     out.append(f"Live runs: {n} seed{'s' if n > 1 else ''} (each seed shuffles which shift gets which page), "
                "two real Meko members, AMP Postgres ledger, qwen3:8b. Every number below comes from the "
-               "`summary.json` of a run in `results/`.")
+               "`summary.json` of a run in `results/published/`.")
     out.append("")
     out.append("| Pages | Runbook in prompt: resolved | Night Shift: resolved | Steps per page | Tokens per page |")
     out.append("|---|---|---|---|---|")
@@ -70,24 +72,46 @@ def main():
     to_high = sum(1 for e in lib if (e["verify"].get("after") or {}).get("band") == "high")
     out.append("What the memory layer did, summed over the live runs:")
     out.append("")
-    out.append(f"- {learned} fixes learned, {promoted} promoted by the curator, {retired} retired by the ledger.")
+    humans = [e for e in evs if e["kind"] == "human"]
+    human_ids = {e["memory_id"] for e in humans}
+    reused = []
+    for d in a.live:
+        inc = json.loads((Path(d) / "incidents.json").read_text())
+        reused += [x for x in inc if x.get("mode") == "nightshift" and x.get("used_memory") in human_ids]
+    out.append(f"- {learned} fixes learned, {promoted} promoted by the curator, {retired} retired by the ledger. "
+               "The curator promotes every fix the ledger still marks valid; there is no human review step.")
+    out.append(f"- {len(humans)} pages the agent lost were fixed by the on-call human, and their note went into Meko the same way. "
+               f"A later page started from one of those human notes {len(reused)} times and was resolved {sum(x['resolved'] for x in reused)} times.")
     out.append(f"- Retired fixes were refused {blocked} times. A fix the ledger had already retired was still applied {stale} time{'s' if stale != 1 else ''}"
                f" on {len(stale_pages)} pages: {sum(stale_pages.values())} of those pages were resolved, because the old cause had really come back"
                " and a diagnostic printed the same target (the fresh-evidence rule); the rest were wasted retries.")
-    out.append(f"- The librarian answered {len(lib)} weak searches; `selflearning_verify` reported {improved} of them improved, "
-               f"{to_high} reaching the high band.")
+    out.append(f"- The librarian answered {len(lib)} searches that Meko scored as weak matches. Replaying them, "
+               f"`selflearning_verify` moved {improved} to a better match band, {to_high} of them to the high band "
+               "(this is Meko's own retrieval score, not a page outcome).")
     out.append("")
-    sh, ns = load(a.ablation[0])["results"]["nightshift"]["repeat"], load(a.ablation[1])["results"]["nightshift"]["repeat"]
-    out.append("### Is it the sharing?")
+    kinds = {"nomemory": [], "noshare": [], "full": []}
+    for d in a.ablation:
+        r = load(d)
+        kinds["nomemory" if not r.get("memory", True) else "noshare" if not r.get("share", True) else "full"].append(r)
+    ns = len(kinds["full"])
+    avg = lambda rs, k, f: sum(r["results"]["nightshift"][k][f] for r in rs) / len(rs)  # noqa: E731
+    out.append("### Where does the gain come from?")
     out.append("")
-    out.append("Same agent, same pages, offline, with the collective layer switched off so each shift only sees its own private memories:")
+    out.append(f"Same Night Shift agent and pages, offline (in-process Meko stand-in, SQLite ledger), {ns} seeds, three switches:")
     out.append("")
-    out.append("| Repeat pages | Resolved | Steps | Tokens |")
-    out.append("|---|---|---|---|")
-    out.append(f"| Private memory only | {pct(ns['accuracy'])} | {ns['steps_mean']} | {ns['tokens_mean']:,} |")
-    out.append(f"| Shared through Meko | **{pct(sh['accuracy'])}** | {sh['steps_mean']} | {sh['tokens_mean']:,} |")
+    out.append("| Night Shift lane, offline | First-seen | Repeats | All pages | Steps per repeat |")
+    out.append("|---|---|---|---|---|")
+    for k, label in (("nomemory", "Runbook search only, nothing remembered (`--no-memory`)"),
+                     ("noshare", "Private memory only, no sharing (`--no-share`)"),
+                     ("full", "Shared through Meko")):
+        rs = kinds[k]
+        per = " / ".join(pct(r["results"]["nightshift"]["repeat"]["accuracy"]) for r in rs)
+        out.append(f"| {label} | {pct(avg(rs, 'first_seen', 'accuracy'))} | {pct(avg(rs, 'repeat', 'accuracy'))} ({per}) "
+                   f"| {pct(avg(rs, 'all', 'accuracy'))} | {avg(rs, 'repeat', 'steps_mean'):.1f} |")
     out.append("")
-    out.append("13 of the 25 repeats first happened on the other shift. Without sharing, those start from scratch.")
+    out.append("- The first row still searches the runbook in Meko instead of pasting it, so it isolates retrieval from memory. "
+               "Its first-seen score is the share of the gain that comes from a shorter, focused prompt rather than from remembering.")
+    out.append("- 13 of the 25 repeats first happened on the other shift. Without sharing, those start from scratch.")
     out.append("")
     t = [r["results"]["nightshift"]["trap"]["accuracy"] for r in runs]
     tb = [r["results"]["baseline"]["trap"]["accuracy"] for r in runs]
@@ -97,7 +121,12 @@ def main():
                "The ledger stops the stale fix, but finding the new cause is still up to an 8B model.")
     out.append("- The ledger can also over-block: when the old cause really returns but the agent never runs the diagnostic that prints the target, "
                "the retired fix stays refused and the page is lost (INC-33 in two of the three live seeds).")
-    out.append("- First-seen pages are the control: memory cannot help there, and differences come from run-to-run noise of the model.")
+    fs_b = sum(r["results"]["baseline"]["first_seen"]["accuracy"] for r in runs) / n
+    fs_m = sum(r["results"]["nightshift"]["first_seen"]["accuracy"] for r in runs) / n
+    nm = avg(kinds["nomemory"], "first_seen", "accuracy")
+    out.append(f"- First-seen pages: memory cannot help there, yet Night Shift scored {pct(fs_m)} against {pct(fs_b)} live. "
+               f"The no-memory control scores {pct(nm)} offline, so this part of the gain comes from retrieving a few runbook sections "
+               "instead of pasting the whole runbook, not from the team's memory.")
     body = "\n".join(out)
     p = ROOT / "README.md"
     s = p.read_text()
