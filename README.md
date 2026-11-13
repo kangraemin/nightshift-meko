@@ -11,7 +11,7 @@ A Postgres ledger records whether each remembered fix still works, so a fix that
 
 Theme: **02 Agentic support: Never Solve It Twice** (internal SRE support).
 
-- Demo video (4:42): https://kangraemin.github.io/nightshift-meko/docs/video/nightshift-demo.mp4
+- Demo video (4:47): https://kangraemin.github.io/nightshift-meko/docs/video/nightshift-demo.mp4
 - Replay a live run in the browser: https://kangraemin.github.io/nightshift-meko/dashboard/
 - Slides: [docs/deck.pdf](docs/deck.pdf)
 
@@ -93,6 +93,16 @@ Same offline runs, 3 seeds, with the ledger switched off (`--no-ledger`): memori
 - Pages resolved barely move: the ledger does not find causes. What it changes is how many wrong changes reach (simulated) production: 19.7 → 12.0 per run (39% fewer).
 - Without the ledger the Fixer still refuses a fix that already failed on the same page; the ledger adds refusals of fixes that failed on earlier pages, on either shift.
 
+With only 3 traps per run the trap column above is noise. A second schedule (`--schedule traps`) keeps the same 12 first-seen causes but adds 10 traps, each followed by a repeat of the new cause; 3 seeds each, offline:
+
+| Trap-heavy schedule | Traps resolved (10 per run) | Repeats | All pages | Failed fixes applied | Fixes refused by the Fixer |
+|---|---|---|---|---|---|
+| Memory without the ledger | 40% (40% / 40% / 40%) | 78% | 64% | 38.7 per run | 40.3 per run |
+| Memory checked against the ledger | 33% (40% / 30% / 30%) | 85% | 68% | 28.3 per run | 37.3 per run |
+
+- The ledger does not help on the trap page itself: an 8B model still has to find the new cause (the small difference is within noise).
+- It helps on the page after. When the new cause comes back, Night Shift resolved 24 of 30 with the ledger and 20 of 30 without it, because the stale memory is marked RETIRED and replaced instead of being tried again; failed fixes applied drop accordingly.
+
 ### What did not improve
 
 - Traps: Night Shift resolved 33% of trap pages, the runbook lane 33%. The ledger stops the stale fix, but finding the new cause is still up to an 8B model.
@@ -119,7 +129,7 @@ Same offline runs, 3 seeds, with the ledger switched off (`--no-ledger`): memori
 ### Postgres inside the context
 
 Retrieval alone cannot tell a good memory from a stale one.
-Night Shift keeps a small ledger next to the memories (AMP Postgres in the live run, SQLite offline) in the same datapack.
+Night Shift keeps a small ledger next to the memories: in the live run it lives in the datapack's own Postgres (AMP), offline in a local SQLite file.
 Meko's documented way to reach a datapack's Postgres is a direct SQL connection (there is no MCP tool for SQL), so the ledger connects with the datapack's own connection string:
 
 - `fix_validity(memory_id, fix_id, service, symptom, learned_by, status, promoted, approval, approved_by, retired_reason, replaced_by)`
@@ -167,6 +177,8 @@ make demo-offline     # 40 pages, both modes, about 45 minutes on an M-series Ma
 make dashboard        # then open the URL it prints
 make demo-quick       # first 12 pages (5 repeats), Night Shift only
 make test             # guardrail, ledger, review queue and webhook tests, no model needed
+results/run_v8_offline.sh   # every offline row of the tables above (18 runs)
+results/run_v8_traps.sh     # the trap-heavy ledger comparison (6 runs)
 ```
 
 Live run (two Meko members sharing one datapack, AMP Postgres ledger):

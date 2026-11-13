@@ -1,5 +1,5 @@
 {
- "i_title": "Night Shift. On-call agents that never solve the same incident twice, even when the other shift solved it. Without any human help, the agents' shared memory lifts repeat pages from 55 to 71 percent resolved. With the on-call team's notes it reaches about 90 percent, using less than half the tokens of the same notes in a wiki.",
+ "i_title": "Night Shift. On-call agents that never solve the same incident twice, even when the other shift solved it. Given the same on-call notes, it resolves as many repeat pages as a wiki that holds them all, with less than half the tokens, and its Postgres ledger cuts wrong fixes applied by 39 percent.",
  "i_p1": "Shift A fixes the 2 a.m. page. The fix lives in their own notes.",
  "i_p2": "The next night, shift B gets the same page, and starts from the wiki again.",
  "i_p3": "And sometimes a remembered fix stops working, but people keep applying it.",
@@ -24,6 +24,6 @@
  "p_5": "Shared knowledge: the team runbook, plus the fixes the curator promoted.",
  "p_6": "Each newly learned fix also left a postmortem artifact, from both shifts.",
  "p_7": "Self-learning: Meko scores how well each search matched. The librarian answers the weak ones and replays them.",
- "o_res": "In the run you just watched, on repeat pages, Night Shift resolved 96 percent, against 56 for the runbook, with 72 percent fewer tokens. Offline, sharing matters: 89 percent shared, 72 with private memory only, and 71 from the agents' own fixes without any human notes. Traps stay hard: 33 percent, against 33 for the runbook. Across all 3 live seeds, repeat pages went from 56 to 92 percent.",
+ "o_res": "In the run you just watched, on repeat pages, Night Shift resolved 96 percent, against 56 for the runbook, with 72 percent fewer tokens. Offline, sharing matters: 89 percent shared, 72 with private memory only, and 71 from the agents' own fixes without any human notes. Traps stay hard: 33 percent, against 33 for the runbook. Across all 3 live seeds, repeat pages went from 56 to 92 percent; most of that is the on-call notes reaching the next shift, since a wiki given the same notes does about as well.",
  "o_end": "The code, the replay dashboard, and every recorded run are on GitHub. No paid model API was used."
 }
