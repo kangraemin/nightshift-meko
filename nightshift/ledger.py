@@ -48,6 +48,8 @@ class Ledger:
             self.ph, self.kind = "?", "sqlite"
         for s in SCHEMA:
             self._x(s)
+        for t in ("services", "incidents", "fix_validity"):  # a re-run with the same id starts clean
+            self._x(f"DELETE FROM {t} WHERE run_id=?", (run_id,))
 
     def _x(self, sql: str, args: tuple = ()):
         cur = self.db.cursor()
