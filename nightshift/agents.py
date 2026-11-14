@@ -202,10 +202,7 @@ def run_nightshift(inc: Incident, meko, ledger, emit, seed: int, model: str, sha
     collective = meko.kb_search(cid, agent, query) if share else []
     res.match_quality = band
     lines, mem_map, shown, retired = [], {}, 0, {}
-    # Over a long stretch the same alert collects many memories, most of them for causes that have since changed.
-    # Look further down both lists, then show the model only what still works: valid fixes (one per fix + target,
-    # best match first, this alert's service first), and the retired ones collapsed into one "do not re-apply" line.
-    hits = private[:8] + collective[:8]
+    hits = private[:3] + collective[:4]
     stats = [ledger.status(h.memory_id) if h.memory_id else None for h in hits]
     if not use_ledger:
         stats = [dict(st, status="valid", retired_reason=None) if st else None for st in stats]
@@ -220,33 +217,12 @@ def run_nightshift(inc: Incident, meko, ledger, emit, seed: int, model: str, sha
                 retired.setdefault(key, st["retired_reason"])
             elif st["status"] == "valid":
                 retired.pop(key, None)
-    for h, st, sm in zip(hits, stats, same):  # retired first, so a valid memory of the same fix wins
+    for h, st, sm in zip(hits, stats, same):
         m = FIX_RE.search(h.text)
-        if m and st and sm and st["status"] == "retired":
-            mem_map[m.group(1)] = (h.memory_id, "retired")
-    order = sorted(range(len(hits)), key=lambda i: (not same[i], i))
-    seen_keys, valid_n, other_n = set(), 0, 0
-    for i in order:
-        h, st, sm = hits[i], stats[i], same[i]
-        if st and st["status"] == "retired":
-            continue
-        m, tm = FIX_RE.search(h.text), TARGET_RE.search(h.text)
-        k = (m.group(1), tm.group(1).lower()) if m and tm else h.text[:80]
-        if k in seen_keys:
-            continue
-        seen_keys.add(k)
-        if st:
-            if valid_n >= 4:
-                continue
-            valid_n += 1
-            if m and sm:
-                mem_map[m.group(1)] = (h.memory_id, st["status"])
-                if res.used_memory is None:
-                    res.used_memory = h.memory_id
-        else:
-            if other_n >= 2:
-                continue
-            other_n += 1
+        if m and st and sm:
+            mem_map[m.group(1)] = (h.memory_id, st["status"])
+            if st["status"] == "valid" and res.used_memory is None:
+                res.used_memory = h.memory_id
         line = _hit_line(h, st)
         if not st:
             stale = [f"{f} {tg}" for f, tg in retired if re.search(rf"\b{f}\b", h.text)]
@@ -254,9 +230,6 @@ def run_nightshift(inc: Incident, meko, ledger, emit, seed: int, model: str, sha
                 line += f" [NOTE: the ledger retired {', '.join(stale)} for this alert; that exact fix no longer works]"
         lines.append(line)
         shown += 1
-    if retired:
-        lines.append("- RETIRED by the fix ledger for this alert, do not re-apply: "
-                     + "; ".join(f"{f} {tg} ({str(r)[:60]})" for (f, tg), r in list(retired.items())[:6]))
     emit("triage", res, {"band": band, "private": len(private), "collective": len(collective),
                          "hits": lines[:4], "used": res.used_memory,
                          "badge": next((l for l in lines if l.startswith("- VALID") and "learned by" in l), None)})
