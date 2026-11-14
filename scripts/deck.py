@@ -75,7 +75,7 @@ def main():
         abl += (f"<tr><td>{label}</td><td>{pct(avg(k, 'first_seen', 'accuracy'))}</td><td{win}>{pct(avg(k, 'repeat', 'accuracy'))}</td>"
                 f"<td>{avg(k, 'repeat', 'steps_mean'):.1f}</td></tr>")
     abl_note = (f"Offline, same pages, mean of {len(kinds['full'])} seeds. Human notes are written by the simulator from the true cause. "
-                f"With no human input the agents' own memory lifts repeats {pct(avg('baseline', 'repeat', 'accuracy'))} → {pct(avg('nohumans', 'repeat', 'accuracy'))}. "
+                f"With no human input, searching the runbook in Meko lifts repeats {pct(avg('baseline', 'repeat', 'accuracy'))} → {pct(avg('nomemory', 'repeat', 'accuracy'))} and the agents' shared memory adds a few points more ({pct(avg('nohumans', 'repeat', 'accuracy'))}). "
                 f"Given the same notes, a wiki resolves as many repeats ({pct(avg('wikinotes', 'repeat', 'accuracy'))} vs {pct(avg('full', 'repeat', 'accuracy'))}) "
                 f"but needs {avg('wikinotes', 'repeat', 'tokens_mean'):,.0f} tokens per repeat against {avg('full', 'repeat', 'tokens_mean'):,.0f}.")
 
@@ -119,7 +119,7 @@ def main():
                               f"<td{win}>{x['tok_early']:,.0f} → {x['tok_late']:,.0f}</td><td>{x['failed']:.0f} per run</td></tr>")
         w, f = st["wiki"], st["full"]
         long_note = (f"The wiki resolves more ({pct(w['repeat'])} vs {pct(f['repeat'])}) and applies fewer wrong fixes, but its prompt doubles as notes pile up; "
-                     f"by the end Night Shift costs {round(f['tok_late'] / w['tok_late'] * 100)}% of it, and the wiki no longer fits the model's default 8k context. "
+                     f"by the end Night Shift costs {round(f['tok_late'] / w['tok_late'] * 100)}% of it (on the last 40 pages the wiki leads {pct(w['late'])} to {pct(f['late'])}). "
                      f"Within Night Shift, the ledger halves wrong fixes ({st['noledger']['failed']:.0f} → {f['failed']:.0f}).")
     evs = [json.loads(x) for r in runs for x in (r / "events.jsonl").read_text().splitlines()]
     hid = {e["memory_id"] for e in evs if e["kind"] == "human"}

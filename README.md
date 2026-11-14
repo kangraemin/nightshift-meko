@@ -11,9 +11,9 @@ A Postgres ledger records whether each remembered fix still works, so a fix that
 
 Theme: **02 Agentic support: Never Solve It Twice** (internal SRE support).
 
-In short: it comes within 3 points of a wiki that holds every on-call note, at about a third of the tokens, and the Postgres ledger cuts wrong fixes 39–52% against memory alone. Over 120 pages the wiki resolves slightly more repeats; its cost doubles as notes pile up. All numbers, including the ones that go against us, are under Results.
+In short, measured the way the theme asks ("how much faster and cheaper repeat issues get solved"): against a wiki that holds every on-call note, Night Shift solves repeat pages in 3.3 steps instead of 5.9 and at 42% of the tokens (35% by page 120, as the wiki grows), at nearly the same accuracy (89% vs 91% over 40 pages; 85% vs 88% over 120, and 79% vs 88% on the last 40). The Postgres ledger cuts wrong fixes 27–52% against memory alone, though the wiki lane applies fewer still. On-call SRE is support for internal customers: the pages are the tickets, the shifts are the support agents. All numbers, including the ones that go against us, are under Results.
 
-- Demo video (4:45): https://kangraemin.github.io/nightshift-meko/docs/video/nightshift-demo.mp4
+- Demo video (4:49): https://kangraemin.github.io/nightshift-meko/docs/video/nightshift-demo.mp4
 - Replay a live run in the browser: https://kangraemin.github.io/nightshift-meko/dashboard/
 - Slides: [docs/deck.pdf](docs/deck.pdf)
 
@@ -40,7 +40,7 @@ The 40 pages include:
 <!-- RESULTS -->
 ## Results
 
-Live runs: 3 seeds (each seed shuffles which shift gets which page), two real Meko members, AMP Postgres ledger, qwen3:8b. Every number below comes from the `summary.json` of a run in `results/published/`.
+Live runs: 3 seeds (each seed shuffles which shift gets which page), two real Meko members, AMP Postgres ledger, qwen3:8b. Every number below comes from the `summary.json` of a run in `results/published/`. The live runs were made with commit d97e29f; later commits added the review step (auto-approve by default, as in those runs), the handback CLI, the webhook and the offline-only options. The offline tables use later code; runs from commit b4bc14b on record their commit in `summary.json`.
 
 | Pages | Runbook in prompt: resolved | Night Shift: resolved | Steps per page | Tokens per page | Seconds per page |
 |---|---|---|---|---|---|
@@ -116,7 +116,7 @@ The 40-page runs are short: by the end a wiki holding every note is still small.
 | Night Shift | 85% | 79% | 76% | 4,747 → 7,799 | 53.3 per run | 0.3 per run |
 
 - The wiki lane wins on resolution here: 88% of repeats against 85%, and the gap is wider late in the run (88% vs 79% on pages 81–120). Keeping every note in the prompt works, as long as it fits.
-- It is also what it costs: the wiki prompt grows with every note, from 10,397 to 22,332 tokens per page. Night Shift went from 4,747 to 7,799, about 35% of the wiki's cost by the end. With the model's default 8k context the wiki would no longer fit; these runs use 16k so it is never cut.
+- It is also what it costs: the wiki prompt grows with every note, from 10,397 to 22,332 tokens per page. Night Shift went from 4,747 to 7,799, about 35% of the wiki's cost by the end. These runs use a 16k context so the wiki is never cut.
 - The ledger halves wrong changes compared with memory alone (110 → 53 failed fixes per run), but the wiki lane applied fewer still (31): Night Shift's agent tries remembered fixes more readily.
 - Wrong notes did little damage in either lane: the recorded fix is a restart of the paged service, and the Fixer refuses a bare service name as a target.
 - We also tried showing the model only still-valid memories, with retired ones collapsed into one line. It made repeats worse (120 pages and 40 pages alike) and was reverted; those runs are in `results/published/off-v9b*`.

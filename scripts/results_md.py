@@ -79,7 +79,7 @@ def long_md(dirs):
                f"({pct(w['late'])} vs {pct(f['late'])} on pages 81–120). Keeping every note in the prompt works, as long as it fits.")
     out.append(f"- It is also what it costs: the wiki prompt grows with every note, from {w['tok_early']:,.0f} to {w['tok_late']:,.0f} tokens per page. "
                f"Night Shift went from {f['tok_early']:,.0f} to {f['tok_late']:,.0f}, about {round(f['tok_late'] / w['tok_late'] * 100)}% of the wiki's cost by the end. "
-               "With the model's default 8k context the wiki would no longer fit; these runs use 16k so it is never cut.")
+               "These runs use a 16k context so the wiki is never cut.")
     if n:
         out.append(f"- The ledger halves wrong changes compared with memory alone ({n['failed']:.0f} → {f['failed']:.0f} failed fixes per run), "
                    f"but the wiki lane applied fewer still ({w['failed']:.0f}): Night Shift's agent tries remembered fixes more readily.")
@@ -102,7 +102,9 @@ def main():
     out = ["## Results", ""]
     out.append(f"Live runs: {n} seed{'s' if n > 1 else ''} (each seed shuffles which shift gets which page), "
                "two real Meko members, AMP Postgres ledger, qwen3:8b. Every number below comes from the "
-               "`summary.json` of a run in `results/published/`.")
+               "`summary.json` of a run in `results/published/`. The live runs were made with commit d97e29f; later commits added "
+               "the review step (auto-approve by default, as in those runs), the handback CLI, the webhook and the offline-only options. "
+               "The offline tables use later code; runs from commit b4bc14b on record their commit in `summary.json`.")
     out.append("")
     out.append("| Pages | Runbook in prompt: resolved | Night Shift: resolved | Steps per page | Tokens per page | Seconds per page |")
     out.append("|---|---|---|---|---|---|")
