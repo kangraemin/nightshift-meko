@@ -33,11 +33,56 @@ def failed_applies(d):
                if h["action"] == "apply_fix" and not h.get("ok") and not h["obs"].startswith("REFUSED"))
 
 
+def long_stats(dirs):
+    """Per lane, mean over seeds, for the 120-page runs (--schedule long --note-errors): wiki lane, Night Shift, no ledger."""
+    lanes = {"wiki": [], "full": [], "noledger": []}
+    for d in dirs:
+        r = json.loads((Path(d) / "summary.json").read_text())
+        mode = "baseline" if r.get("wiki_notes") else "nightshift"
+        k = "wiki" if r.get("wiki_notes") else ("noledger" if not r.get("ledger_on", True) else "full")
+        rows = [x for x in json.loads((Path(d) / "incidents.json").read_text()) if x.get("mode") == mode]
+        rows.sort(key=lambda x: int(x["inc_id"].split("-")[1]))
+        rep = [x for x in rows if not x["first_seen"]]
+        late = [x for x in rep if int(x["inc_id"].split("-")[1]) > 80]
+        tok = lambda xs: sum(x["tokens_in"] + x["tokens_out"] for x in xs) / max(1, len(xs))  # noqa: E731
+        applied = [h for x in rows for h in x["history"] if h["action"] == "apply_fix" and not h["obs"].startswith("REFUSED")]
+        lanes[k].append({
+            "repeat": sum(x["resolved"] for x in rep) / len(rep), "late": sum(x["resolved"] for x in late) / len(late),
+            "after": sum(x["resolved"] for x in rep if x["cause"].endswith("b")) / max(1, sum(1 for x in rep if x["cause"].endswith("b"))),
+            "tok_early": tok(rows[:40]), "tok_late": tok(rows[80:]),
+            "failed": sum(1 for h in applied if not h.get("ok")),
+            "restarts": sum(1 for h in applied if h.get("fix") == "F13" and not h.get("ok")),
+            "notes": r.get("note_errors", 0), "n": len(rows)})
+    return {k: {f: sum(x[f] for x in v) / len(v) for f in v[0]} | {"seeds": len(v)} for k, v in lanes.items() if v}
+
+
+def long_md(dirs):
+    st = long_stats(dirs)
+    if not {"wiki", "full"} <= set(st):
+        return []
+    out = [f"### 120 pages, and a quarter of the on-call notes are wrong", "",
+           f"The 40-page runs are short: by the end a wiki holding every note is still small. A third schedule (`--schedule long`) runs 120 pages: "
+           "40 pages of the 12 original causes, 40 pages in which 10 of them change cause one by one, then 40 pages of repeats. "
+           f"And {round(st['full']['notes'] * 100)}% of on-call human notes now record the wrong fix (the restart the engineer tried first, which only seemed to help), "
+           f"the same notes for both lanes. Offline, {st['full']['seeds']} seeds, 16k context so the wiki never gets cut:", "",
+           "| 120-page lane | Repeats resolved | Repeats, pages 81–120 | After a cause changed | Tokens per page, pages 1–40 → 81–120 | Failed fixes applied | Wrong-note restarts applied |",
+           "|---|---|---|---|---|---|---|"]
+    for k, label in (("wiki", "Runbook + every note pasted in the wiki"), ("noledger", "Night Shift without the ledger"), ("full", "Night Shift")):
+        if k not in st:
+            continue
+        x = st[k]
+        out.append(f"| {label} | {pct(x['repeat'])} | {pct(x['late'])} | {pct(x['after'])} | {x['tok_early']:,.0f} → {x['tok_late']:,.0f} "
+                   f"| {x['failed']:.1f} per run | {x['restarts']:.1f} per run |")
+    out.append("")
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--live", nargs="+", required=True)
     ap.add_argument("--ablation", nargs="+", required=True)
     ap.add_argument("--traps", nargs="*", default=[], help="runs of the trap-heavy schedule (--schedule traps), ledger on and off")
+    ap.add_argument("--long", nargs="*", default=[], help="120-page runs (--schedule long --note-errors): wiki lane, Night Shift, no ledger")
     a = ap.parse_args()
     runs = [load(d) for d in a.live]
     n = len(runs)
@@ -221,6 +266,8 @@ def main():
                        f"and {a0} of {n0} without it, because the stale memory is marked RETIRED and replaced instead of being tried again; "
                        "failed fixes applied drop accordingly.")
             out.append("")
+    if a.long:
+        out += long_md(a.long)
     t = [r["results"]["nightshift"]["trap"]["accuracy"] for r in runs]
     tb = [r["results"]["baseline"]["trap"]["accuracy"] for r in runs]
     out.append("### What did not improve")
