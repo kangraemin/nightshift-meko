@@ -22,9 +22,11 @@ def pct(x):
 def main():
     argv = sys.argv[1:]
     abl_dirs = [Path(x) for x in argv[argv.index("--ablation") + 1:argv.index("--live")]]
-    tr_i = argv.index("--traps") if "--traps" in argv else len(argv)
+    lg_i = argv.index("--long") if "--long" in argv else len(argv)
+    tr_i = argv.index("--traps") if "--traps" in argv else lg_i
     runs = [Path(x) for x in argv[argv.index("--live") + 1:tr_i]]
-    trap_dirs = [Path(x) for x in argv[tr_i + 1:]]
+    trap_dirs = [Path(x) for x in argv[tr_i + 1:lg_i]]
+    long_dirs = [Path(x) for x in argv[lg_i + 1:]]
     run = runs[0]
     sums = [json.loads((r / "summary.json").read_text())["results"] for r in runs]
     s = {m: {k: {f: sum(x[m][k][f] for x in sums) / len(sums) for f in ("accuracy", "steps_mean", "tokens_mean")}
@@ -105,6 +107,20 @@ def main():
             led_note += (f" With 10 traps per run ({len(tk[True])} seeds): the trap page itself is no easier ({pct(ta(False))} → {pct(ta(True))}), "
                          f"but when the new cause returns it is resolved {after(False)} → {after(True)}, "
                          f"and failed fixes drop {tf(False):.1f} → {tf(True):.1f} per run.")
+    long_rows, long_note = "", ""
+    if long_dirs:
+        from results_md import long_stats
+        st = long_stats(long_dirs)
+        for k, label in (("wiki", "Runbook + every note in the wiki"), ("noledger", "Night Shift, no ledger"), ("full", "Night Shift")):
+            if k in st:
+                x = st[k]
+                win = " class='win'" if k == "full" else ""
+                long_rows += (f"<tr><td>{label}</td><td>{pct(x['repeat'])}</td><td>{pct(x['late'])}</td>"
+                              f"<td{win}>{x['tok_early']:,.0f} → {x['tok_late']:,.0f}</td><td>{x['failed']:.0f} per run</td></tr>")
+        w, f = st["wiki"], st["full"]
+        long_note = (f"The wiki resolves more ({pct(w['repeat'])} vs {pct(f['repeat'])}) and applies fewer wrong fixes, but its prompt doubles as notes pile up; "
+                     f"by the end Night Shift costs {round(f['tok_late'] / w['tok_late'] * 100)}% of it, and the wiki no longer fits the model's default 8k context. "
+                     f"Within Night Shift, the ledger halves wrong fixes ({st['noledger']['failed']:.0f} → {f['failed']:.0f}).")
     evs = [json.loads(x) for r in runs for x in (r / "events.jsonl").read_text().splitlines()]
     hid = {e["memory_id"] for e in evs if e["kind"] == "human"}
     reused = [x for r in runs for x in json.loads((r / "incidents.json").read_text())
@@ -132,7 +148,7 @@ def main():
     src = (ROOT / "docs" / "deck.html").read_text()
     for k, v in {"RESULT_ROWS": "".join(out), "RESULT_NOTE": note, "ABLATION_ROWS": abl, "ABLATION_NOTE": abl_note,
                  "TRAP_STEPS": trap_steps, "LIMIT_TRAP": limit,
-                 "LEDGER_ROWS": led, "LEDGER_NOTE": led_note, "HUMAN_NOTE": human_note}.items():
+                 "LEDGER_ROWS": led, "LONG_ROWS": long_rows, "LONG_NOTE": long_note, "LEDGER_NOTE": led_note, "HUMAN_NOTE": human_note}.items():
         src = src.replace("{{" + k + "}}", v)
     filled = ROOT / "docs" / "deck.filled.html"
     filled.write_text(src)

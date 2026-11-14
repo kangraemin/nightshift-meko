@@ -74,6 +74,19 @@ def long_md(dirs):
         out.append(f"| {label} | {pct(x['repeat'])} | {pct(x['late'])} | {pct(x['after'])} | {x['tok_early']:,.0f} → {x['tok_late']:,.0f} "
                    f"| {x['failed']:.1f} per run | {x['restarts']:.1f} per run |")
     out.append("")
+    w, f, n = st["wiki"], st["full"], st.get("noledger")
+    out.append(f"- The wiki lane wins on resolution here: {pct(w['repeat'])} of repeats against {pct(f['repeat'])}, and the gap is wider late in the run "
+               f"({pct(w['late'])} vs {pct(f['late'])} on pages 81–120). Keeping every note in the prompt works, as long as it fits.")
+    out.append(f"- It is also what it costs: the wiki prompt grows with every note, from {w['tok_early']:,.0f} to {w['tok_late']:,.0f} tokens per page. "
+               f"Night Shift went from {f['tok_early']:,.0f} to {f['tok_late']:,.0f}, about {round(f['tok_late'] / w['tok_late'] * 100)}% of the wiki's cost by the end. "
+               "With the model's default 8k context the wiki would no longer fit; these runs use 16k so it is never cut.")
+    if n:
+        out.append(f"- The ledger halves wrong changes compared with memory alone ({n['failed']:.0f} → {f['failed']:.0f} failed fixes per run), "
+                   f"but the wiki lane applied fewer still ({w['failed']:.0f}): Night Shift's agent tries remembered fixes more readily.")
+    out.append("- Wrong notes did little damage in either lane: the recorded fix is a restart of the paged service, and the Fixer refuses a bare service name as a target.")
+    out.append("- We also tried showing the model only still-valid memories, with retired ones collapsed into one line. "
+               "It made repeats worse (120 pages and 40 pages alike) and was reverted; those runs are in `results/published/off-v9b*`.")
+    out.append("")
     return out
 
 

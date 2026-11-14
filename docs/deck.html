@@ -34,7 +34,7 @@ img.arch { max-height: 560px; max-width: 1120px; display: block; margin: -8px au
 <section>
   <h1>Night Shift</h1>
   <p style="font-size:30px">On-call agents that never solve the same incident twice, even when the other shift solved it.</p>
-  <p style="font-size:26px">Same answers as a wiki holding every on-call note, at <b>42% of the tokens</b>;<br><b>39% fewer</b> wrong fixes applied, thanks to the Postgres ledger</p>
+  <p style="font-size:26px">Within 3 points of a wiki holding every on-call note, at <b>a third of its tokens</b>;<br>the Postgres ledger cuts wrong fixes <b>39–52%</b> against memory alone</p>
   <p class="muted">ContextCon: Remember Everything · Theme 02 Agentic support: Never Solve It Twice</p>
   <div class="foot">github.com/kangraemin/nightshift-meko</div>
 </section>
@@ -106,6 +106,16 @@ img.arch { max-height: 560px; max-width: 1120px; display: block; margin: -8px au
 </section>
 
 <section>
+  <h2>120 pages: a wiki keeps every note, and pays for it</h2>
+  <p>Offline, 3 seeds. 10 causes change mid-run; a quarter of the on-call notes record the wrong fix.</p>
+  <table>
+    <tr><th>120-page lane</th><th>Repeats</th><th>Pages 81–120</th><th>Tokens per page, start → end</th><th>Failed fixes applied</th></tr>
+    {{LONG_ROWS}}
+  </table>
+  <p style="margin-top:26px">{{LONG_NOTE}}</p>
+</section>
+
+<section>
   <h2>People stay in the loop</h2>
   <ul>
     <li><b>Review before sharing.</b> A learned fix stays with its shift until a person approves it (<code>nightshift.review approve</code>). A rejected fix is retired, so the Fixer refuses it.</li>
@@ -133,6 +143,7 @@ img.arch { max-height: 560px; max-width: 1120px; display: block; margin: -8px au
   <ul>
     <li>The incidents are simulated so that grading is exact. Real pages are messier.</li>
     <li>One 8B local model, no paid API. A larger model was not tested.</li>
+    <li>A wiki holding every note resolves slightly more repeats; Night Shift's case is cost, cross-shift sharing and the ledger, not accuracy.</li>
     <li>{{LIMIT_TRAP}}</li>
     <li>Next: wire the agent's diagnostics to real tools behind the webhook, and let the ledger expire fixes after a deploy.</li>
   </ul>

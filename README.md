@@ -11,7 +11,9 @@ A Postgres ledger records whether each remembered fix still works, so a fix that
 
 Theme: **02 Agentic support: Never Solve It Twice** (internal SRE support).
 
-- Demo video (4:47): https://kangraemin.github.io/nightshift-meko/docs/video/nightshift-demo.mp4
+In short: it comes within 3 points of a wiki that holds every on-call note, at about a third of the tokens, and the Postgres ledger cuts wrong fixes 39–52% against memory alone. Over 120 pages the wiki resolves slightly more repeats; its cost doubles as notes pile up. All numbers, including the ones that go against us, are under Results.
+
+- Demo video (4:45): https://kangraemin.github.io/nightshift-meko/docs/video/nightshift-demo.mp4
 - Replay a live run in the browser: https://kangraemin.github.io/nightshift-meko/dashboard/
 - Slides: [docs/deck.pdf](docs/deck.pdf)
 
@@ -103,6 +105,22 @@ With only 3 traps per run the trap column above is noise. A second schedule (`--
 - The ledger does not help on the trap page itself: an 8B model still has to find the new cause (the small difference is within noise).
 - It helps on the page after. When the new cause comes back, Night Shift resolved 24 of 30 with the ledger and 20 of 30 without it, because the stale memory is marked RETIRED and replaced instead of being tried again; failed fixes applied drop accordingly.
 
+### 120 pages, and a quarter of the on-call notes are wrong
+
+The 40-page runs are short: by the end a wiki holding every note is still small. A third schedule (`--schedule long`) runs 120 pages: 40 pages of the 12 original causes, 40 pages in which 10 of them change cause one by one, then 40 pages of repeats. And 25% of on-call human notes now record the wrong fix (the restart the engineer tried first, which only seemed to help), the same notes for both lanes. Offline, 3 seeds, 16k context so the wiki never gets cut:
+
+| 120-page lane | Repeats resolved | Repeats, pages 81–120 | After a cause changed | Tokens per page, pages 1–40 → 81–120 | Failed fixes applied | Wrong-note restarts applied |
+|---|---|---|---|---|---|---|
+| Runbook + every note pasted in the wiki | 88% | 88% | 84% | 10,397 → 22,332 | 30.7 per run | 0.3 per run |
+| Night Shift without the ledger | 84% | 73% | 71% | 4,722 → 8,744 | 110.0 per run | 1.0 per run |
+| Night Shift | 85% | 79% | 76% | 4,747 → 7,799 | 53.3 per run | 0.3 per run |
+
+- The wiki lane wins on resolution here: 88% of repeats against 85%, and the gap is wider late in the run (88% vs 79% on pages 81–120). Keeping every note in the prompt works, as long as it fits.
+- It is also what it costs: the wiki prompt grows with every note, from 10,397 to 22,332 tokens per page. Night Shift went from 4,747 to 7,799, about 35% of the wiki's cost by the end. With the model's default 8k context the wiki would no longer fit; these runs use 16k so it is never cut.
+- The ledger halves wrong changes compared with memory alone (110 → 53 failed fixes per run), but the wiki lane applied fewer still (31): Night Shift's agent tries remembered fixes more readily.
+- Wrong notes did little damage in either lane: the recorded fix is a restart of the paged service, and the Fixer refuses a bare service name as a target.
+- We also tried showing the model only still-valid memories, with retired ones collapsed into one line. It made repeats worse (120 pages and 40 pages alike) and was reverted; those runs are in `results/published/off-v9b*`.
+
 ### What did not improve
 
 - Traps: Night Shift resolved 33% of trap pages, the runbook lane 33%. The ledger stops the stale fix, but finding the new cause is still up to an 8B model.
@@ -179,6 +197,8 @@ make demo-quick       # first 12 pages (5 repeats), Night Shift only
 make test             # guardrail, ledger, review queue and webhook tests, no model needed
 results/run_v8_offline.sh   # every offline row of the tables above (18 runs)
 results/run_v8_traps.sh     # the trap-heavy ledger comparison (6 runs)
+results/run_v9_long.sh      # the 120-page comparison (9 runs)
+results/run_v9b.sh          # the reverted triage change (9 runs)
 ```
 
 Live run (two Meko members sharing one datapack, AMP Postgres ledger):
