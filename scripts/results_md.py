@@ -154,13 +154,14 @@ def main():
         inc = json.loads((Path(d) / "incidents.json").read_text())
         reps += [x for x in inc if x.get("mode") == "nightshift" and not x.get("first_seen")]
     rh = [x for x in reps if x.get("used_memory") in human_ids]
-    ra = [x for x in reps if x not in rh]
+    ra = [x for x in reps if x not in rh and x.get("used_memory")]
+    rn = [x for x in reps if not x.get("used_memory")]
     out.append(f"- {len(humans)} pages the agent lost were fixed by the on-call human, and their note went into Meko the same way. "
                "In this benchmark the simulator writes that note from the page's true cause (a stand-in for the engineer's write-up), "
                "so pages that start from one are easier.")
     out.append(f"- Split of the {len(reps)} live repeat pages: {len(rh)} started from a human note and {sum(x['resolved'] for x in rh)} were resolved; "
-               f"the other {len(ra)} relied on the agents' own memory and {sum(x['resolved'] for x in ra)} were resolved "
-               f"({pct(sum(x['resolved'] for x in ra) / len(ra))}). The offline table below gives the runbook lane the same human notes for a fair comparison.")
+               f"{len(ra)} started from the agents' own memory and {sum(x['resolved'] for x in ra)} were resolved "
+               f"({pct(sum(x['resolved'] for x in ra) / len(ra))}); {len(rn)} used no memory and {sum(x['resolved'] for x in rn)} of them were resolved. The offline table below gives the runbook lane the same human notes for a fair comparison.")
     out.append(f"- Retired fixes were refused {blocked} times. A fix the ledger had already retired was still applied {stale} time{'s' if stale != 1 else ''}"
                f" on {len(stale_pages)} pages: {sum(stale_pages.values())} of those pages were resolved, because the old cause had really come back"
                " and a diagnostic printed the same target (the fresh-evidence rule); the rest were wasted retries.")

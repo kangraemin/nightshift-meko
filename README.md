@@ -11,9 +11,9 @@ A Postgres ledger records whether each remembered fix still works, so a fix that
 
 Theme: **02 Agentic support: Never Solve It Twice** (internal SRE support).
 
-In short, measured the way the theme asks ("how much faster and cheaper repeat issues get solved"): against a wiki that holds every on-call note, Night Shift solves repeat pages in 3.3 steps instead of 5.9 and at 42% of the tokens (35% by page 120, as the wiki grows), at nearly the same accuracy (89% vs 91% over 40 pages; 85% vs 88% over 120, and 79% vs 88% on the last 40). The Postgres ledger cuts wrong fixes 27–52% against memory alone, though the wiki lane applies fewer still. On-call SRE is support for internal customers: the pages are the tickets, the shifts are the support agents. All numbers, including the ones that go against us, are under Results.
+In short, measured the way the theme asks ("how much faster and cheaper repeat issues get solved"): against a wiki that holds every on-call note, Night Shift solves repeat pages in 3.3 steps instead of 5.9 and at 42% of the tokens (35% by page 120, as the wiki grows), with 2 to 9 points less accuracy (89% vs 91% over 40 pages; 85% vs 88% over 120, and 79% vs 88% on the last 40). The Postgres ledger cuts wrong fixes 27–52% against memory alone, though the wiki lane applies fewer still. On-call SRE is support for internal customers: the pages are the tickets, the shifts are the support agents. All numbers, including the ones that go against us, are under Results.
 
-- Demo video (4:49): https://kangraemin.github.io/nightshift-meko/docs/video/nightshift-demo.mp4
+- Demo video (4:51): https://kangraemin.github.io/nightshift-meko/docs/video/nightshift-demo.mp4
 - Replay a live run in the browser: https://kangraemin.github.io/nightshift-meko/dashboard/
 - Slides: [docs/deck.pdf](docs/deck.pdf)
 
@@ -55,7 +55,7 @@ What the memory layer did, summed over the live runs:
 
 - 61 fixes learned, 61 promoted by the curator, 28 retired by the ledger. These runs auto-approve every valid fix (`NIGHTSHIFT_REVIEW=auto`, no person at the keyboard); with `NIGHTSHIFT_REVIEW=manual` the curator shares only fixes a person approved with `python -m nightshift.review`.
 - 26 pages the agent lost were fixed by the on-call human, and their note went into Meko the same way. In this benchmark the simulator writes that note from the page's true cause (a stand-in for the engineer's write-up), so pages that start from one are easier.
-- Split of the 75 live repeat pages: 30 started from a human note and 28 were resolved; the other 45 relied on the agents' own memory and 41 were resolved (91%). The offline table below gives the runbook lane the same human notes for a fair comparison.
+- Split of the 75 live repeat pages: 30 started from a human note and 28 were resolved; 42 started from the agents' own memory and 40 were resolved (95%); 3 used no memory and 1 of them were resolved. The offline table below gives the runbook lane the same human notes for a fair comparison.
 - Retired fixes were refused 53 times. A fix the ledger had already retired was still applied 10 times on 8 pages: 7 of those pages were resolved, because the old cause had really come back and a diagnostic printed the same target (the fresh-evidence rule); the rest were wasted retries.
 - The librarian answered 40 searches that Meko scored as weak matches. Replaying them, `selflearning_verify` moved 34 to a better match band, 27 of them to the high band (this is Meko's own retrieval score, not a page outcome).
 

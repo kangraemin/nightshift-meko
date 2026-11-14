@@ -38,7 +38,7 @@ e.style.transformOrigin=`50% ${window.scrollY-e.offsetTop}px`;e.style.transition
 e.style.transition=`transform ${s}s linear`;e.style.transform='scale(1.05)';}}"""
 
 INTRO = [
-    ("title", None, "i_title", "Night Shift. On-call agents that never solve the same incident twice, even when the other shift solved it. Against a wiki that holds every on-call note, it solves repeat pages in half the steps and at 42 percent of the tokens, at nearly the same accuracy, and its Postgres ledger cuts wrong fixes by 27 to 52 percent against memory alone."),
+    ("title", None, "i_title", "Night Shift. On-call agents that never solve the same incident twice, even when the other shift solved it. Against a wiki that holds every on-call note, it solves repeat pages in 3.3 steps instead of 5.9 and at 42 percent of the tokens, with 2 to 9 points less accuracy, and its Postgres ledger cuts wrong fixes by 27 to 52 percent against memory alone."),
     ("problem", "line", "i_p1", "Shift A fixes the 2 a.m. page. The fix lives in their own notes."),
     ("problem", "line", "i_p2", "The next night, shift B gets the same page, and starts from the wiki again."),
     ("problem", "line", "i_p3", "And sometimes a remembered fix stops working, but people keep applying it."),
