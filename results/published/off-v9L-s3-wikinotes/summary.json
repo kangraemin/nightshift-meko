@@ -1,0 +1,68 @@
+{
+ "run_id": "off-v9L-s3-wikinotes",
+ "seed": 3,
+ "model": "qwen3:8b",
+ "ledger": "sqlite",
+ "offline": true,
+ "share": true,
+ "memory": true,
+ "ledger_on": true,
+ "humans": true,
+ "wiki_notes": true,
+ "schedule": "long",
+ "note_errors": 0.25,
+ "num_ctx": 16384,
+ "code": "b4bc14b",
+ "incidents": 120,
+ "results": {
+  "baseline": {
+   "all": {
+    "n": 120,
+    "accuracy": 0.75,
+    "steps_mean": 6.72,
+    "tokens_mean": 19292,
+    "seconds_mean": 87.99,
+    "stale_fix_applied": 0,
+    "stale_fix_blocked": 0
+   },
+   "first_seen": {
+    "n": 12,
+    "accuracy": 0.417,
+    "steps_mean": 9.5,
+    "tokens_mean": 16741,
+    "seconds_mean": 94.64,
+    "stale_fix_applied": 0,
+    "stale_fix_blocked": 0
+   },
+   "repeat": {
+    "n": 98,
+    "accuracy": 0.837,
+    "steps_mean": 6.06,
+    "tokens_mean": 18735,
+    "seconds_mean": 86.08,
+    "stale_fix_applied": 0,
+    "stale_fix_blocked": 0
+   },
+   "trap": {
+    "n": 10,
+    "accuracy": 0.3,
+    "steps_mean": 9.9,
+    "tokens_mean": 27812,
+    "seconds_mean": 98.72,
+    "stale_fix_applied": 0,
+    "stale_fix_blocked": 0
+   }
+  },
+  "nightshift": {
+   "all": null,
+   "first_seen": null,
+   "repeat": null,
+   "trap": null
+  }
+ },
+ "meko_calls": {
+  "A": {},
+  "B": {}
+ },
+ "fix_validity": []
+}
