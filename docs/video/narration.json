@@ -1,5 +1,5 @@
 {
- "i_title": "Night Shift. On-call agents that never solve the same incident twice, even when the other shift solved it. Given the same on-call notes, it resolves as many repeat pages as a wiki that holds them all, with less than half the tokens, and its Postgres ledger cuts wrong fixes applied by 39 percent.",
+ "i_title": "Night Shift. On-call agents that never solve the same incident twice, even when the other shift solved it. It comes within a few points of a wiki that holds every on-call note, at about a third of the tokens, and its Postgres ledger cuts wrong fixes by 39 to 52 percent against memory alone.",
  "i_p1": "Shift A fixes the 2 a.m. page. The fix lives in their own notes.",
  "i_p2": "The next night, shift B gets the same page, and starts from the wiki again.",
  "i_p3": "And sometimes a remembered fix stops working, but people keep applying it.",
